@@ -1,0 +1,21 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Scheduled functions (cron in UTC). ET-sensitive jobs verify the local
+# window inside the handler so DST shifts don't misfire.
+[functions."sync-scores"]
+  schedule = "*/15 * * * *"
+
+[functions."tue-summary"]
+  # ~9am ET Tuesday (13:00 UTC during EST, 14:00 during EDT — handler no-ops outside the ET window)
+  schedule = "0 13 * * 2"
+
+[functions."thu-reminder"]
+  schedule = "0 13 * * 4"
+
+[functions."lock-reminder"]
+  schedule = "0 * * * *"
