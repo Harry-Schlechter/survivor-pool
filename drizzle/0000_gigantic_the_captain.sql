@@ -48,6 +48,13 @@ CREATE TABLE "games" (
 	CONSTRAINT "games_season_id_id_pk" PRIMARY KEY("season_id","id")
 );
 --> statement-breakpoint
+CREATE TABLE "messages" (
+	"id" text PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL,
+	"body" text NOT NULL,
+	"created_at" timestamp DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "notifications" (
 	"id" text PRIMARY KEY NOT NULL,
 	"season_id" text NOT NULL,
@@ -123,6 +130,7 @@ ALTER TABLE "account" ADD CONSTRAINT "account_user_id_user_id_fk" FOREIGN KEY ("
 ALTER TABLE "entries" ADD CONSTRAINT "entries_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "entries" ADD CONSTRAINT "entries_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "games" ADD CONSTRAINT "games_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "messages" ADD CONSTRAINT "messages_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_season_id_seasons_id_fk" FOREIGN KEY ("season_id") REFERENCES "public"."seasons"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "notifications" ADD CONSTRAINT "notifications_entry_id_entries_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."entries"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "picks" ADD CONSTRAINT "picks_entry_id_entries_id_fk" FOREIGN KEY ("entry_id") REFERENCES "public"."entries"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -132,6 +140,7 @@ CREATE UNIQUE INDEX "entries_season_user_unique" ON "entries" USING btree ("seas
 CREATE INDEX "entries_season_idx" ON "entries" USING btree ("season_id");--> statement-breakpoint
 CREATE INDEX "entries_user_idx" ON "entries" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "games_week_idx" ON "games" USING btree ("season_id","week");--> statement-breakpoint
+CREATE INDEX "messages_created_idx" ON "messages" USING btree ("created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "notifications_dedupe" ON "notifications" USING btree ("season_id","week","kind","entry_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "picks_entry_week_unique" ON "picks" USING btree ("entry_id","week");--> statement-breakpoint
 CREATE INDEX "picks_season_week_idx" ON "picks" USING btree ("season_id","week");--> statement-breakpoint

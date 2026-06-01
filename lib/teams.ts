@@ -44,3 +44,16 @@ export function teamName(abbr: string): string {
 export function teamColor(abbr: string): string {
   return TEAMS[abbr]?.color ?? "#374151";
 }
+
+// ESPN uses lowercase abbreviations in logo URLs. A couple differ from the
+// abbreviations that appear elsewhere in their feed (e.g. WAS vs WSH), so map
+// the exceptions; everything else is just the lowercased abbr.
+const LOGO_ABBR: Record<string, string> = {
+  WAS: "wsh",
+};
+
+/** Public ESPN CDN logo URL for a team abbreviation (no auth, predictable). */
+export function teamLogo(abbr: string): string {
+  const code = (LOGO_ABBR[abbr] ?? abbr).toLowerCase();
+  return `https://a.espncdn.com/i/teamlogos/nfl/500/${code}.png`;
+}

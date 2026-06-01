@@ -8,6 +8,9 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      screens: {
+        xs: "420px", // show full "Jim Olah" title above this width
+      },
       colors: {
         field: "#0b3d2e",
         chalk: "#f5f5f0",

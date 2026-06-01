@@ -2,6 +2,7 @@ import { requireUser } from "@/lib/auth/guards";
 import { getProfile, getCareerData } from "@/lib/queries/profile";
 import { computeCareerStats } from "@/lib/stats";
 import { teamName } from "@/lib/teams";
+import { TeamLogo } from "@/components/team-logo";
 
 export default async function ProfilePage({
   params,
@@ -87,7 +88,9 @@ function PickHistory({
             {sorted.map((p, i) => (
               <tr key={i} className="border-t border-gray-100">
                 <td className="px-4 py-2">{p.week}</td>
-                <td className="px-4 py-2">{teamName(p.team_abbr)}</td>
+                <td className="px-4 py-2">
+                  <TeamLogo abbr={p.team_abbr} size={18} withName />
+                </td>
                 <td className="px-4 py-2">
                   {p.result === "win"
                     ? "✅ Win"

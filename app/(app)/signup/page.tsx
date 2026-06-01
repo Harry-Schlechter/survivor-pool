@@ -16,7 +16,7 @@ export default async function SignupPage() {
   return (
     <div className="mx-auto max-w-lg space-y-5">
       <h1 className="text-2xl font-bold text-field">
-        {season.year} Survivor Pool
+        {season.year} Jim Olah Survivor Pool
       </h1>
 
       <div className="rounded-lg border border-gray-200 p-5">

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { teamName, teamColor } from "@/lib/teams";
+import { TeamLogo } from "@/components/team-logo";
 import { remainingUses } from "@/lib/picks";
 import type { SeasonPhase } from "@/lib/db/schema";
 
@@ -67,10 +68,18 @@ export function PickForm({
     }
   }
 
-  function TeamButton({ abbr }: { abbr: string }) {
+  function TeamButton({ abbr, side }: { abbr: string; side: "away" | "home" }) {
     const left = remainingUses(abbr, phase, priorList);
     const disabled = left <= 0 && abbr !== currentPick;
     const isSel = selected === abbr;
+    const usageLabel =
+      phase === "playoffs"
+        ? ""
+        : disabled
+          ? " - used up"
+          : left === 1
+            ? " - 1 left"
+            : " - 2 left";
     return (
       <button
         type="button"
@@ -78,7 +87,7 @@ export function PickForm({
         onClick={() => setSelected(abbr)}
         style={isSel ? { backgroundColor: teamColor(abbr) } : undefined}
         className={[
-          "flex flex-1 flex-col items-center rounded-lg border px-3 py-3 transition",
+          "flex min-h-[68px] flex-1 flex-col items-center justify-center gap-1 rounded-lg border px-2 py-3 text-center transition active:scale-[.98]",
           isSel
             ? "border-transparent text-white"
             : disabled
@@ -86,15 +95,13 @@ export function PickForm({
               : "border-gray-300 hover:border-field",
         ].join(" ")}
       >
-        <span className="font-semibold">{teamName(abbr)}</span>
-        <span className="text-xs opacity-80">
-          {phase === "playoffs"
-            ? " "
-            : disabled
-              ? "used 2×"
-              : left === 1
-                ? "1 use left"
-                : "2 uses left"}
+        <TeamLogo abbr={abbr} size={28} />
+        <span className="text-sm font-semibold leading-tight">
+          {teamName(abbr)}
+        </span>
+        <span className="text-[10px] uppercase tracking-wide opacity-70">
+          {side}
+          {usageLabel}
         </span>
       </button>
     );
@@ -103,39 +110,46 @@ export function PickForm({
   return (
     <div className="space-y-3">
       {games.map((g) => (
-        <div key={g.id} className="rounded-lg border border-gray-100 p-2">
-          <div className="mb-1 flex items-center justify-between px-1 text-xs text-gray-500">
-            <span>{formatKick(g.kickoff)}</span>
-            {(g.spreadDetail || g.overUnder) && (
-              <span>
-                {g.spreadDetail}
-                {g.spreadDetail && g.overUnder ? " · " : ""}
-                {g.overUnder ? `O/U ${g.overUnder}` : ""}
+        <div key={g.id} className="rounded-xl border border-gray-200 p-2.5">
+          <div className="mb-2 flex items-center justify-between gap-2 px-0.5 text-xs text-gray-500">
+            <span className="font-medium">{formatKick(g.kickoff)}</span>
+            {g.spreadDetail || g.overUnder != null ? (
+              <span className="rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-600">
+                {g.spreadDetail ? `Line ${g.spreadDetail}` : ""}
+                {g.spreadDetail && g.overUnder != null ? " | " : ""}
+                {g.overUnder != null ? `O/U ${g.overUnder}` : ""}
               </span>
+            ) : (
+              <span className="text-gray-300">line TBD</span>
             )}
           </div>
-          <div className="flex gap-2">
-            <TeamButton abbr={g.awayAbbr} />
-            <span className="self-center text-xs text-gray-400">@</span>
-            <TeamButton abbr={g.homeAbbr} />
+          <div className="flex items-stretch gap-2">
+            <TeamButton abbr={g.awayAbbr} side="away" />
+            <span className="self-center text-xs font-medium text-gray-400">
+              @
+            </span>
+            <TeamButton abbr={g.homeAbbr} side="home" />
           </div>
         </div>
       ))}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
-      {saved && <p className="text-sm text-green-600">Pick saved! ✅</p>}
+      {saved && <p className="text-sm text-green-600">Pick saved!</p>}
 
-      <button
-        onClick={submit}
-        disabled={!selected || submitting}
-        className="w-full rounded-lg bg-field px-4 py-3 font-semibold text-white disabled:opacity-50"
-      >
-        {submitting
-          ? "Saving…"
-          : selected
-            ? `Lock in ${teamName(selected)}`
-            : "Select a team"}
-      </button>
+      {/* Sticky submit so it's always reachable on a long mobile list. */}
+      <div className="sticky bottom-3 pt-1">
+        <button
+          onClick={submit}
+          disabled={!selected || submitting}
+          className="w-full rounded-lg bg-field px-4 py-3.5 text-base font-semibold text-white shadow-lg disabled:opacity-50"
+        >
+          {submitting
+            ? "Saving..."
+            : selected
+              ? `Lock in ${teamName(selected)}`
+              : "Select a team"}
+        </button>
+      </div>
     </div>
   );
 }

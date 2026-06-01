@@ -205,8 +205,27 @@ export const notifications = pgTable(
   }),
 );
 
+// ----- Message board ("Talk Smack") ---------------------------------------
+export const messages = pgTable(
+  "messages",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => ({
+    createdIdx: index("messages_created_idx").on(t.createdAt),
+  }),
+);
+
 // Row types inferred from the schema (replaces hand-authored database.types.ts).
 export type UserRow = typeof user.$inferSelect;
+export type MessageRow = typeof messages.$inferSelect;
 export type SeasonRow = typeof seasons.$inferSelect;
 export type EntryRow = typeof entries.$inferSelect;
 export type GameRow = typeof games.$inferSelect;

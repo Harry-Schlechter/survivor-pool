@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/auth/guards";
 import { getCurrentSeason, getEntry } from "@/lib/queries/seasons";
 import { getStandings, type StandingRow } from "@/lib/queries/standings";
 import { teamName } from "@/lib/teams";
+import { TeamLogo } from "@/components/team-logo";
 import { computePayouts } from "@/lib/payouts";
 
 export default async function Dashboard() {
@@ -73,8 +74,9 @@ export default async function Dashboard() {
       )}
 
       {!needsPick && myActive && myRow?.thisWeekPick && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-900">
-          Your Week {season.currentWeek} pick:{" "}
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-green-200 bg-green-50 p-4 text-green-900">
+          <span>Your Week {season.currentWeek} pick:</span>
+          <TeamLogo abbr={myRow.thisWeekPick} size={20} />
           <strong>{teamName(myRow.thisWeekPick)}</strong>
           {!standings.locked && (
             <>
@@ -122,7 +124,7 @@ function SeasonHeader({
   return (
     <div className="flex items-baseline justify-between">
       <h1 className="text-2xl font-bold text-field">
-        {season.year} Survivor Pool
+        {season.year} Jim Olah Survivor Pool
       </h1>
       <span className="rounded-full bg-field/10 px-3 py-1 text-sm font-medium text-field">
         {season.status === "active" ? phaseLabel : season.status}
@@ -165,15 +167,19 @@ function BracketTable({
                   </Link>
                 </td>
                 <td className="px-4 py-2 text-right text-gray-600">
-                  {showElimWeek
-                    ? r.eliminatedWeek
-                      ? `out wk ${r.eliminatedWeek}`
-                      : ""
-                    : locked
-                      ? pickCell(r)
-                      : r.hasPick
-                        ? "✅ picked"
-                        : "— no pick"}
+                  {showElimWeek ? (
+                    r.eliminatedWeek ? (
+                      `out wk ${r.eliminatedWeek}`
+                    ) : (
+                      ""
+                    )
+                  ) : locked ? (
+                    <PickCell row={r} />
+                  ) : r.hasPick ? (
+                    "✅ picked"
+                  ) : (
+                    "— no pick"
+                  )}
                 </td>
               </tr>
             ))}
@@ -184,15 +190,20 @@ function BracketTable({
   );
 }
 
-function pickCell(r: StandingRow): string {
-  if (!r.thisWeekPick) return "— no pick";
+function PickCell({ row }: { row: StandingRow }) {
+  if (!row.thisWeekPick) return <span>— no pick</span>;
   const mark =
-    r.thisWeekResult === "win"
+    row.thisWeekResult === "win"
       ? "✅"
-      : r.thisWeekResult === "loss"
+      : row.thisWeekResult === "loss"
         ? "❌"
         : "•";
-  return `${mark} ${teamName(r.thisWeekPick)}`;
+  return (
+    <span className="inline-flex items-center justify-end gap-1.5">
+      <span>{mark}</span>
+      <TeamLogo abbr={row.thisWeekPick} size={18} withName />
+    </span>
+  );
 }
 
 function PayoutCard({

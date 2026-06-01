@@ -25,7 +25,9 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6">
-      <h1 className="mb-2 text-3xl font-bold text-field">🏈 Survivor Pool</h1>
+      <h1 className="mb-2 text-3xl font-bold text-field">
+        🏈 Jim Olah Survivor Pool
+      </h1>
       <p className="mb-8 text-gray-600">
         Sign in with a magic link — no password needed.
       </p>

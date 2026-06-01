@@ -5,7 +5,7 @@ export default function RulesPage() {
         ← Back
       </a>
       <h1 className="mb-6 mt-4 text-3xl font-bold text-field">
-        🏈 How the Survivor Pool works
+        🏈 How the Jim Olah Survivor Pool works
       </h1>
 
       <div className="space-y-5 text-gray-800">

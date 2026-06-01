@@ -9,28 +9,31 @@ export function Nav({
   userId: string;
 }) {
   return (
-    <header className="border-b border-gray-200 bg-field text-white">
-      <nav className="mx-auto flex max-w-4xl items-center gap-4 px-4 py-3">
-        <Link href="/" className="font-bold">
-          🏈 Survivor Pool
+    <header className="sticky top-0 z-30 border-b border-black/10 bg-field text-white">
+      <nav className="mx-auto flex max-w-4xl items-center justify-between gap-2 px-3 py-2.5 sm:px-4 sm:py-3">
+        <Link href="/" className="shrink-0 font-bold leading-tight">
+          🏈 <span className="hidden xs:inline">Jim Olah </span>Survivor
         </Link>
-        <div className="flex flex-1 items-center gap-4 text-sm">
-          <Link href="/pick" className="hover:underline">
+        <div className="flex items-center gap-3 overflow-x-auto text-sm sm:gap-4">
+          <Link href="/pick" className="shrink-0 py-1 hover:underline">
             Pick
           </Link>
-          <Link href={`/profile/${userId}`} className="hover:underline">
-            My stats
+          <Link
+            href={`/profile/${userId}`}
+            className="shrink-0 py-1 hover:underline"
+          >
+            Stats
           </Link>
-          <Link href="/rules" className="hover:underline">
+          <Link href="/rules" className="shrink-0 py-1 hover:underline">
             Rules
           </Link>
           {isAdmin && (
-            <Link href="/admin" className="hover:underline">
+            <Link href="/admin" className="shrink-0 py-1 hover:underline">
               Admin
             </Link>
           )}
+          <SignOutButton />
         </div>
-        <SignOutButton />
       </nav>
     </header>
   );
