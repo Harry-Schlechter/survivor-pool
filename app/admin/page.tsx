@@ -1,6 +1,8 @@
-import { requireAdmin, getCurrentSeason } from "@/lib/auth";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth/guards";
+import { getCurrentSeason } from "@/lib/queries/seasons";
+import { getSeasonEntriesWithUser } from "@/lib/queries/admin";
 import { Nav } from "@/components/nav";
+import type { SeasonRow } from "@/lib/db/schema";
 import {
   createSeason,
   updateSeasonSettings,
@@ -15,37 +17,13 @@ import {
 } from "./actions";
 
 export default async function AdminPage() {
-  const profile = await requireAdmin();
+  const adminUser = await requireAdmin();
   const season = await getCurrentSeason();
-  const admin = createAdminClient();
-
-  // Hand-authored types don't model the profiles embed (it resolves to a
-  // SelectQueryError), so read the raw data and re-type via unknown.
-  type AdminEntry = {
-    id: string;
-    paid: boolean;
-    paid_marked_by_user: boolean;
-    bracket: string;
-    profiles:
-      | { display_name: string; email: string }
-      | { display_name: string; email: string }[]
-      | null;
-  };
-  let entries: AdminEntry[] = [];
-  if (season) {
-    const res = await admin
-      .from("entries")
-      .select(
-        "id,paid,paid_marked_by_user,bracket,user_id,profiles(display_name,email)",
-      )
-      .eq("season_id", season.id)
-      .order("joined_at", { ascending: true });
-    entries = (res.data ?? []) as unknown[] as AdminEntry[];
-  }
+  const entries = season ? await getSeasonEntriesWithUser(season.id) : [];
 
   return (
     <div className="min-h-screen">
-      <Nav isAdmin userId={profile.id} />
+      <Nav isAdmin userId={adminUser.id} />
       <main className="mx-auto max-w-3xl space-y-8 px-4 py-6">
         <h1 className="text-2xl font-bold text-field">Admin</h1>
 
@@ -71,8 +49,16 @@ function CreateSeasonForm() {
       <form action={createSeason} className="grid grid-cols-2 gap-3">
         <Input name="year" label="Year" type="number" defaultValue="2026" />
         <Input name="buy_in" label="Buy-in ($)" type="number" defaultValue="50" />
-        <Input name="venmo_handle" label="Venmo handle" placeholder="@your-handle" />
-        <Input name="venmo_link" label="Venmo link" placeholder="https://venmo.com/..." />
+        <Input
+          name="venmo_handle"
+          label="Venmo handle"
+          placeholder="@your-handle"
+        />
+        <Input
+          name="venmo_link"
+          label="Venmo link"
+          placeholder="https://venmo.com/..."
+        />
         <button className="col-span-2 rounded bg-field px-4 py-2 font-semibold text-white">
           Create (opens signups)
         </button>
@@ -81,40 +67,23 @@ function CreateSeasonForm() {
   );
 }
 
-function SeasonControls({
-  season,
-}: {
-  season: {
-    id: string;
-    year: number;
-    status: string;
-    phase: string;
-    current_week: number;
-    lock_at: string | null;
-    buy_in: number;
-    venmo_handle: string | null;
-    venmo_link: string | null;
-  };
-}) {
+function SeasonControls({ season }: { season: SeasonRow }) {
   return (
     <section className="space-y-4 rounded-lg border border-gray-200 p-5">
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">
-          {season.year} season — <span className="capitalize">{season.status}</span>{" "}
-          · {season.phase} · week {season.current_week}
-        </h2>
-      </div>
+      <h2 className="font-semibold">
+        {season.year} season — <span className="capitalize">{season.status}</span>{" "}
+        · {season.phase} · week {season.currentWeek}
+      </h2>
 
       <div className="text-sm text-gray-600">
         Lock:{" "}
-        {season.lock_at
-          ? new Date(season.lock_at).toLocaleString("en-US", {
+        {season.lockAt
+          ? new Date(season.lockAt).toLocaleString("en-US", {
               timeZone: "America/New_York",
             }) + " ET"
           : "not set"}
       </div>
 
-      {/* Lifecycle buttons */}
       <div className="flex flex-wrap gap-2">
         {season.status === "signup" && (
           <ActionButton action={setStatus.bind(null, season.id, "active")}>
@@ -142,12 +111,27 @@ function SeasonControls({
         )}
       </div>
 
-      {/* Settings */}
-      <form action={updateSeasonSettings} className="grid grid-cols-2 gap-3 border-t pt-4">
+      <form
+        action={updateSeasonSettings}
+        className="grid grid-cols-2 gap-3 border-t pt-4"
+      >
         <input type="hidden" name="season_id" value={season.id} />
-        <Input name="buy_in" label="Buy-in ($)" type="number" defaultValue={String(season.buy_in)} />
-        <Input name="venmo_handle" label="Venmo handle" defaultValue={season.venmo_handle ?? ""} />
-        <Input name="venmo_link" label="Venmo link" defaultValue={season.venmo_link ?? ""} />
+        <Input
+          name="buy_in"
+          label="Buy-in ($)"
+          type="number"
+          defaultValue={String(season.buyIn)}
+        />
+        <Input
+          name="venmo_handle"
+          label="Venmo handle"
+          defaultValue={season.venmoHandle ?? ""}
+        />
+        <Input
+          name="venmo_link"
+          label="Venmo link"
+          defaultValue={season.venmoLink ?? ""}
+        />
         <button className="col-span-2 rounded border border-field px-4 py-2 font-semibold text-field">
           Save settings
         </button>
@@ -156,17 +140,16 @@ function SeasonControls({
   );
 }
 
-function PaymentTable({
-  entries,
-}: {
-  entries: {
-    id: string;
-    paid: boolean;
-    paid_marked_by_user: boolean;
-    bracket: string;
-    profiles: { display_name: string; email: string } | { display_name: string; email: string }[] | null;
-  }[];
-}) {
+interface AdminEntry {
+  id: string;
+  paid: boolean;
+  paidMarkedByUser: boolean;
+  bracket: string;
+  displayName: string;
+  email: string;
+}
+
+function PaymentTable({ entries }: { entries: AdminEntry[] }) {
   return (
     <section className="rounded-lg border border-gray-200 p-5">
       <h2 className="mb-3 font-semibold">
@@ -183,36 +166,31 @@ function PaymentTable({
             </tr>
           </thead>
           <tbody>
-            {entries.map((e) => {
-              const prof = Array.isArray(e.profiles) ? e.profiles[0] : e.profiles;
-              return (
-                <tr key={e.id} className="border-t border-gray-100">
-                  <td className="px-3 py-2">
-                    {prof?.display_name}
-                    <div className="text-xs text-gray-400">{prof?.email}</div>
-                  </td>
-                  <td className="px-3 py-2">
-                    {e.paid_marked_by_user ? "✅" : "—"}
-                  </td>
-                  <td className="px-3 py-2">
-                    {e.paid ? (
-                      <span className="text-green-700">Paid</span>
-                    ) : (
-                      <span className="text-amber-700">Unpaid</span>
-                    )}{" "}
-                    · {e.bracket}
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <ActionButton
-                      action={confirmPaid.bind(null, e.id, !e.paid)}
-                      small
-                    >
-                      {e.paid ? "Mark unpaid" : "Confirm paid"}
-                    </ActionButton>
-                  </td>
-                </tr>
-              );
-            })}
+            {entries.map((e) => (
+              <tr key={e.id} className="border-t border-gray-100">
+                <td className="px-3 py-2">
+                  {e.displayName}
+                  <div className="text-xs text-gray-400">{e.email}</div>
+                </td>
+                <td className="px-3 py-2">{e.paidMarkedByUser ? "✅" : "—"}</td>
+                <td className="px-3 py-2">
+                  {e.paid ? (
+                    <span className="text-green-700">Paid</span>
+                  ) : (
+                    <span className="text-amber-700">Unpaid</span>
+                  )}{" "}
+                  · {e.bracket}
+                </td>
+                <td className="px-3 py-2 text-right">
+                  <ActionButton
+                    action={confirmPaid.bind(null, e.id, !e.paid)}
+                    small
+                  >
+                    {e.paid ? "Mark unpaid" : "Confirm paid"}
+                  </ActionButton>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

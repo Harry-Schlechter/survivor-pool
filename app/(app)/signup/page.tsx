@@ -1,15 +1,16 @@
-import { requireUser, getCurrentSeason, getMyEntry } from "@/lib/auth";
+import { requireUser } from "@/lib/auth/guards";
+import { getCurrentSeason, getEntry } from "@/lib/queries/seasons";
 import { SignupActions } from "@/components/signup-actions";
 
 export default async function SignupPage() {
-  const { user } = await requireUser();
+  const user = await requireUser();
   const season = await getCurrentSeason();
 
   if (!season) {
     return <Notice>No season is open right now.</Notice>;
   }
 
-  const entry = await getMyEntry(season.id, user.id);
+  const entry = await getEntry(season.id, user.id);
   const signupsOpen = season.status === "signup";
 
   return (
@@ -19,21 +20,21 @@ export default async function SignupPage() {
       </h1>
 
       <div className="rounded-lg border border-gray-200 p-5">
-        <h2 className="mb-2 font-semibold">Buy-in: ${season.buy_in}</h2>
-        {season.venmo_link || season.venmo_handle ? (
+        <h2 className="mb-2 font-semibold">Buy-in: ${season.buyIn}</h2>
+        {season.venmoLink || season.venmoHandle ? (
           <p className="text-sm text-gray-700">
             Pay via Venmo:{" "}
-            {season.venmo_link ? (
+            {season.venmoLink ? (
               <a
-                href={season.venmo_link}
+                href={season.venmoLink}
                 target="_blank"
                 rel="noreferrer"
                 className="font-semibold text-field underline"
               >
-                {season.venmo_handle || "Open Venmo"}
+                {season.venmoHandle || "Open Venmo"}
               </a>
             ) : (
-              <span className="font-semibold">{season.venmo_handle}</span>
+              <span className="font-semibold">{season.venmoHandle}</span>
             )}
           </p>
         ) : (
@@ -49,7 +50,7 @@ export default async function SignupPage() {
       <SignupActions
         joined={!!entry}
         paid={!!entry?.paid}
-        selfMarked={!!entry?.paid_marked_by_user}
+        selfMarked={!!entry?.paidMarkedByUser}
         signupsOpen={signupsOpen}
       />
     </div>

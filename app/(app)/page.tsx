@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { requireUser, getCurrentSeason, getMyEntry } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { getStandings, type StandingRow } from "@/lib/standings";
+import { requireUser } from "@/lib/auth/guards";
+import { getCurrentSeason, getEntry } from "@/lib/queries/seasons";
+import { getStandings, type StandingRow } from "@/lib/queries/standings";
 import { teamName } from "@/lib/teams";
 import { computePayouts } from "@/lib/payouts";
 
 export default async function Dashboard() {
-  const { user } = await requireUser();
+  const user = await requireUser();
   const season = await getCurrentSeason();
 
   if (!season) {
@@ -17,25 +17,25 @@ export default async function Dashboard() {
     );
   }
 
-  const supabase = createClient();
-  const myEntry = await getMyEntry(season.id, user.id);
+  const myEntry = await getEntry(season.id, user.id);
   const standings = await getStandings(
-    supabase,
     season.id,
-    season.current_week,
-    season.lock_at,
+    season.currentWeek,
+    season.lockAt,
+    user.id,
   );
 
   const myActive =
-    myEntry?.paid && (myEntry.bracket === "main" || myEntry.bracket === "losers");
-  const myPick = [...standings.main, ...standings.losers].find(
+    myEntry?.paid &&
+    (myEntry.bracket === "main" || myEntry.bracket === "losers");
+  const myRow = [...standings.main, ...standings.losers].find(
     (r) => r.entryId === myEntry?.id,
   );
   const needsPick =
     season.status === "active" &&
     myActive &&
     !standings.locked &&
-    !myPick?.thisWeekPick;
+    !myRow?.hasPick;
 
   return (
     <div className="space-y-6">
@@ -45,7 +45,7 @@ export default async function Dashboard() {
         <Link href="/signup" className="block rounded-lg bg-field p-5 text-white">
           <div className="text-lg font-semibold">Signups are open →</div>
           <div className="text-sm text-white/80">
-            Join the {season.year} pool. Buy-in ${season.buy_in}.
+            Join the {season.year} pool. Buy-in ${season.buyIn}.
           </div>
         </Link>
       )}
@@ -64,18 +64,18 @@ export default async function Dashboard() {
       {needsPick && (
         <Link href="/pick" className="block rounded-lg bg-red-600 p-5 text-white">
           <div className="text-lg font-semibold">
-            ⏰ You haven&apos;t picked Week {season.current_week} yet!
+            ⏰ You haven&apos;t picked Week {season.currentWeek} yet!
           </div>
           <div className="text-sm text-white/90">
-            Picks lock {formatLock(season.lock_at)}. Tap to pick →
+            Picks lock {formatLock(season.lockAt)}. Tap to pick →
           </div>
         </Link>
       )}
 
-      {!needsPick && myActive && myPick?.thisWeekPick && (
+      {!needsPick && myActive && myRow?.thisWeekPick && (
         <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-900">
-          Your Week {season.current_week} pick:{" "}
-          <strong>{teamName(myPick.thisWeekPick)}</strong>
+          Your Week {season.currentWeek} pick:{" "}
+          <strong>{teamName(myRow.thisWeekPick)}</strong>
           {!standings.locked && (
             <>
               {" "}
@@ -115,10 +115,10 @@ export default async function Dashboard() {
 function SeasonHeader({
   season,
 }: {
-  season: { year: number; status: string; phase: string; current_week: number };
+  season: { year: number; status: string; phase: string; currentWeek: number };
 }) {
   const phaseLabel =
-    season.phase === "playoffs" ? "Playoffs" : `Week ${season.current_week}`;
+    season.phase === "playoffs" ? "Playoffs" : `Week ${season.currentWeek}`;
   return (
     <div className="flex items-baseline justify-between">
       <h1 className="text-2xl font-bold text-field">
@@ -171,7 +171,7 @@ function BracketTable({
                       : ""
                     : locked
                       ? pickCell(r)
-                      : r.thisWeekPick
+                      : r.hasPick
                         ? "✅ picked"
                         : "— no pick"}
                 </td>
@@ -199,14 +199,14 @@ function PayoutCard({
   season,
   standings,
 }: {
-  season: { buy_in: number; pot_override: number | null };
+  season: { buyIn: string; potOverride: string | null };
   standings: { main: StandingRow[]; losers: StandingRow[] };
 }) {
   const paidCount = standings.main.length + standings.losers.length;
   const result = computePayouts({
     paidEntryCount: paidCount,
-    buyIn: season.buy_in,
-    potOverride: season.pot_override,
+    buyIn: Number(season.buyIn),
+    potOverride: season.potOverride != null ? Number(season.potOverride) : null,
     winnersChampion: standings.main[0]?.displayName ?? null,
     losersChampion: standings.losers[0]?.displayName ?? null,
   });
@@ -245,7 +245,7 @@ function Empty({
   );
 }
 
-function formatLock(lockAt: string | null): string {
+function formatLock(lockAt: Date | null): string {
   if (!lockAt) return "soon";
   return new Date(lockAt).toLocaleString("en-US", {
     weekday: "short",

@@ -1,29 +1,23 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionUser } from "@/lib/auth/guards";
+import { getCurrentSeason } from "@/lib/queries/seasons";
+import { db } from "@/lib/db";
+import { entries } from "@/lib/db/schema";
+import { and, eq } from "drizzle-orm";
 
 // Player self-reports they've Venmo'd. Sets paid_marked_by_user; admin confirms
 // the real `paid` flag separately.
 export async function POST() {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  const { data: season } = await supabase
-    .from("seasons")
-    .select("id")
-    .neq("status", "archived")
-    .order("year", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const season = await getCurrentSeason();
   if (!season) return NextResponse.json({ error: "no_season" }, { status: 400 });
 
-  const { error } = await supabase
-    .from("entries")
-    .update({ paid_marked_by_user: true })
-    .eq("season_id", season.id)
-    .eq("user_id", user.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  await db
+    .update(entries)
+    .set({ paidMarkedByUser: true })
+    .where(and(eq(entries.seasonId, season.id), eq(entries.userId, user.id)));
+
   return NextResponse.json({ ok: true });
 }

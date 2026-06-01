@@ -11,7 +11,7 @@
 // `gradeWeek` is a PURE function over plain rows so it is fully unit-testable and
 // idempotent: feeding it already-graded state produces the same transitions.
 
-import type { Bracket } from "./database.types";
+import type { Bracket } from "./db/schema";
 
 export interface GradeEntry {
   id: string;

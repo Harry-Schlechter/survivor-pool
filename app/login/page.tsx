@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { signIn } from "@/lib/auth/client";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -13,21 +13,13 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const supabase = createClient();
     const next =
       typeof window !== "undefined"
         ? new URLSearchParams(window.location.search).get("next") || "/"
         : "/";
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
-          next,
-        )}`,
-      },
-    });
+    const { error } = await signIn.magicLink({ email, callbackURL: next });
     setLoading(false);
-    if (error) setError(error.message);
+    if (error) setError(error.message ?? "Could not send link.");
     else setSent(true);
   }
 

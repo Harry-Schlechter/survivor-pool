@@ -3,54 +3,59 @@
 // notifications table (unique on season+week+kind+entry).
 
 import type { Config } from "@netlify/functions";
-import { adminClient, getActiveSeason, getActiveEntries } from "./_shared";
+import { getActiveSeason, getActivePaidEntries } from "./_shared";
+import { db } from "../../lib/db";
+import { picks, notifications } from "../../lib/db/schema";
+import { and, eq } from "drizzle-orm";
 import { sendEmail } from "../../lib/email/send";
 import { pickReminderEmail } from "../../lib/email/templates";
 
 const WINDOW_MS = 75 * 60 * 1000;
 
 export default async function handler() {
-  const admin = adminClient();
-  const season = await getActiveSeason(admin);
-  if (!season || !season.lock_at) {
+  const season = await getActiveSeason();
+  if (!season || !season.lockAt) {
     return new Response("no lock", { status: 200 });
   }
 
-  const msToLock = new Date(season.lock_at).getTime() - Date.now();
+  const msToLock = new Date(season.lockAt).getTime() - Date.now();
   if (msToLock <= 0 || msToLock > WINDOW_MS) {
     return new Response("not in lock window", { status: 200 });
   }
 
-  const entries = await getActiveEntries(admin, season.id);
-  const { data: picks } = await admin
-    .from("picks")
-    .select("entry_id")
-    .eq("season_id", season.id)
-    .eq("week", season.current_week);
-  const picked = new Set((picks ?? []).map((p) => p.entry_id));
+  const active = await getActivePaidEntries(season.id);
 
-  // Already-reminded entries (dedupe).
-  const { data: sent } = await admin
-    .from("notifications")
-    .select("entry_id")
-    .eq("season_id", season.id)
-    .eq("week", season.current_week)
-    .eq("kind", "lock_reminder");
-  const alreadySent = new Set((sent ?? []).map((n) => n.entry_id));
+  const pickRows = await db
+    .select({ entryId: picks.entryId })
+    .from(picks)
+    .where(and(eq(picks.seasonId, season.id), eq(picks.week, season.currentWeek)));
+  const picked = new Set(pickRows.map((p) => p.entryId));
 
-  const targets = entries.filter(
+  const sentRows = await db
+    .select({ entryId: notifications.entryId })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.seasonId, season.id),
+        eq(notifications.week, season.currentWeek),
+        eq(notifications.kind, "lock_reminder"),
+      ),
+    );
+  const alreadySent = new Set(sentRows.map((n) => n.entryId));
+
+  const targets = active.filter(
     (e) => !picked.has(e.entryId) && !alreadySent.has(e.entryId) && e.email,
   );
-  const { subject, html } = pickReminderEmail(season.current_week, true);
+  const { subject, html } = pickReminderEmail(season.currentWeek, true);
 
   let count = 0;
   for (const e of targets) {
     await sendEmail({ to: e.email, subject, html });
-    await admin.from("notifications").insert({
-      season_id: season.id,
-      week: season.current_week,
+    await db.insert(notifications).values({
+      seasonId: season.id,
+      week: season.currentWeek,
       kind: "lock_reminder",
-      entry_id: e.entryId,
+      entryId: e.entryId,
     });
     count++;
   }

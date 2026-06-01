@@ -1,5 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
-import { requireUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth/guards";
+import { getProfile, getCareerData } from "@/lib/queries/profile";
 import { computeCareerStats } from "@/lib/stats";
 import { teamName } from "@/lib/teams";
 
@@ -9,36 +9,18 @@ export default async function ProfilePage({
   params: { id: string };
 }) {
   await requireUser();
-  const supabase = createClient();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id,display_name")
-    .eq("id", params.id)
-    .maybeSingle();
-
+  const profile = await getProfile(params.id);
   if (!profile) {
     return <div className="text-gray-600">Player not found.</div>;
   }
 
-  const { data: entries } = await supabase
-    .from("entries")
-    .select("id,season_id,eliminated_week,final_rank,bracket")
-    .eq("user_id", params.id);
-
-  const entryIds = (entries ?? []).map((e) => e.id);
-  const { data: picks } = entryIds.length
-    ? await supabase
-        .from("picks")
-        .select("entry_id,season_id,week,team_abbr,result")
-        .in("entry_id", entryIds)
-    : { data: [] as never[] };
-
-  const stats = computeCareerStats(entries ?? [], picks ?? []);
+  const { entries, picks } = await getCareerData(params.id);
+  const stats = computeCareerStats(entries, picks);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-field">{profile.display_name}</h1>
+      <h1 className="text-2xl font-bold text-field">{profile.displayName}</h1>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Seasons" value={stats.seasonsPlayed} />
@@ -55,10 +37,7 @@ export default async function ProfilePage({
               : "—"
           }
         />
-        <Stat
-          label="Avg elim week"
-          value={stats.avgEliminationWeek ?? "—"}
-        />
+        <Stat label="Avg elim week" value={stats.avgEliminationWeek ?? "—"} />
         <Stat label="Avg finish" value={stats.avgFinalRank ?? "—"} />
         <Stat
           label="Best finish"
@@ -67,7 +46,7 @@ export default async function ProfilePage({
         <Stat label="Total picks" value={stats.totalPicks} />
       </div>
 
-      <PickHistory picks={picks ?? []} />
+      <PickHistory picks={picks} />
     </div>
   );
 }

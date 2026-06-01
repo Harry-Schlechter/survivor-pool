@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { teamName, teamColor } from "@/lib/teams";
 import { remainingUses } from "@/lib/picks";
-import type { SeasonPhase } from "@/lib/database.types";
+import type { SeasonPhase } from "@/lib/db/schema";
 
 interface GameLite {
   id: string;

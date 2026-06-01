@@ -1,18 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { signOut } from "@/lib/auth/client";
 
 export function SignOutButton() {
   const router = useRouter();
-  async function signOut() {
-    await createClient().auth.signOut();
+  async function handleSignOut() {
+    await signOut();
     router.push("/login");
     router.refresh();
   }
   return (
     <button
-      onClick={signOut}
+      onClick={handleSignOut}
       className="text-sm text-white/80 underline hover:text-white"
     >
       Sign out

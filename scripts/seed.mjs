@@ -1,18 +1,14 @@
-// Seed/backfill helper for local + staging testing.
+// Seed/backfill helper for local + staging testing against the Neon DB.
 //
-// Usage:
 //   node scripts/seed.mjs --year 2024 --week 1
 //
-// Requires NEXT_PUBLIC_SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY in the env
-// (loaded from .env.local automatically below). Creates an "active" season,
-// syncs the given week's real ESPN games, and creates a few fake players with
-// picks so you can exercise grading + standings without waiting for live games.
-//
-// It uses the service-role key (bypasses RLS). NEVER run against production with
-// real users unless you mean to.
+// Requires DATABASE_URL (Neon connection string) in the env or .env.local.
+// Creates an "active" season and syncs the given week's REAL ESPN games (real
+// winners/scores) so you can exercise grading + standings without waiting for
+// live games. Only touches seasons + games.
 
 import { readFileSync } from "node:fs";
-import { createClient } from "@supabase/supabase-js";
+import { neon } from "@neondatabase/serverless";
 
 // --- tiny .env.local loader (no dep) ---------------------------------------
 try {
@@ -24,7 +20,7 @@ try {
     }
   }
 } catch {
-  // no .env.local — rely on ambient env
+  /* no .env.local — rely on ambient env */
 }
 
 const args = Object.fromEntries(
@@ -36,42 +32,38 @@ const args = Object.fromEntries(
 const YEAR = Number(args.year || 2024);
 const WEEK = Number(args.week || 1);
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!url || !key) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+const url = process.env.DATABASE_URL || process.env.NETLIFY_DATABASE_URL;
+if (!url) {
+  console.error("Missing DATABASE_URL (Neon connection string).");
   process.exit(1);
 }
-const db = createClient(url, key, { auth: { persistSession: false } });
+const sql = neon(url);
 
 const ESPN = `https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard?dates=${YEAR}&seasontype=2&week=${WEEK}`;
+const uuid = () => crypto.randomUUID();
 
 async function main() {
   console.log(`Seeding ${YEAR} week ${WEEK}…`);
 
   // 1) Season (upsert by year).
-  const { data: season, error: sErr } = await db
-    .from("seasons")
-    .upsert(
-      {
-        year: YEAR,
-        status: "active",
-        phase: "regular",
-        current_week: WEEK,
-        buy_in: 50,
-        venmo_handle: "@example",
-      },
-      { onConflict: "year" },
-    )
-    .select()
-    .single();
-  if (sErr) throw sErr;
+  const existing = await sql`select id from seasons where year = ${YEAR} limit 1`;
+  let seasonId;
+  if (existing.length > 0) {
+    seasonId = existing[0].id;
+    await sql`update seasons set status='active', phase='regular', current_week=${WEEK} where id=${seasonId}`;
+  } else {
+    seasonId = uuid();
+    await sql`insert into seasons (id, year, status, phase, current_week, buy_in, venmo_handle)
+              values (${seasonId}, ${YEAR}, 'active', 'regular', ${WEEK}, '50', '@example')`;
+  }
 
   // 2) Games from real ESPN data.
   const res = await fetch(ESPN);
   const json = await res.json();
   const events = json.events ?? [];
-  const games = events.map((ev) => {
+  let lockAt = null;
+
+  for (const ev of events) {
     const c = ev.competitions[0];
     const home = c.competitors.find((x) => x.homeAway === "home");
     const away = c.competitors.find((x) => x.homeAway === "away");
@@ -81,37 +73,30 @@ async function main() {
     let winner = null;
     if (completed && hs != null && as != null && hs !== as)
       winner = hs > as ? home.team.abbreviation : away.team.abbreviation;
-    return {
-      id: ev.id,
-      season_id: season.id,
-      week: WEEK,
-      seasontype: 2,
-      home_abbr: home.team.abbreviation,
-      away_abbr: away.team.abbreviation,
-      home_name: home.team.displayName,
-      away_name: away.team.displayName,
-      kickoff: ev.date,
-      status: c.status.type.name,
-      completed,
-      home_score: hs,
-      away_score: as,
-      winner_abbr: winner,
-      spread_detail: c.odds?.[0]?.details ?? null,
-      over_under: c.odds?.[0]?.overUnder ?? null,
-    };
-  });
-  await db.from("games").upsert(games, { onConflict: "season_id,id" });
-  console.log(`  ${games.length} games synced.`);
+    if (!lockAt || ev.date < lockAt) lockAt = ev.date;
 
-  // Set lock_at to the earliest kickoff.
-  const lockAt = games.map((g) => g.kickoff).sort()[0] ?? null;
-  await db.from("seasons").update({ lock_at: lockAt }).eq("id", season.id);
+    await sql`
+      insert into games (id, season_id, week, seasontype, home_abbr, away_abbr,
+        home_name, away_name, kickoff, status, completed, home_score, away_score,
+        winner_abbr, spread_detail, over_under)
+      values (${ev.id}, ${seasonId}, ${WEEK}, 2, ${home.team.abbreviation},
+        ${away.team.abbreviation}, ${home.team.displayName},
+        ${away.team.displayName}, ${ev.date}, ${c.status.type.name},
+        ${completed}, ${hs}, ${as}, ${winner},
+        ${c.odds?.[0]?.details ?? null},
+        ${c.odds?.[0]?.overUnder != null ? String(c.odds[0].overUnder) : null})
+      on conflict (season_id, id) do update set
+        status=excluded.status, completed=excluded.completed,
+        home_score=excluded.home_score, away_score=excluded.away_score,
+        winner_abbr=excluded.winner_abbr, kickoff=excluded.kickoff`;
+  }
+
+  await sql`update seasons set lock_at=${lockAt} where id=${seasonId}`;
 
   console.log(
-    `\nDone. Season ${season.id} is active at week ${WEEK}. ` +
-      `Sign in, sign up, mark yourself paid in /admin, then make a pick.\n` +
-      `Run the admin "Sync + grade now" button (or the sync-scores function) ` +
-      `to grade the seeded final games.`,
+    `\nDone. Season ${seasonId} active at week ${WEEK} with ${events.length} games.\n` +
+      `Sign in, join the season, mark yourself paid in /admin, make a pick,\n` +
+      `then hit admin "Sync + grade now" to grade the seeded final games.`,
   );
 }
 

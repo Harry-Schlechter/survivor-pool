@@ -1,4 +1,4 @@
-import { requireUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth/guards";
 import { Nav } from "@/components/nav";
 
 export default async function AppLayout({
@@ -6,10 +6,10 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, profile } = await requireUser();
+  const user = await requireUser();
   return (
     <div className="min-h-screen">
-      <Nav isAdmin={profile.is_admin} userId={user.id} />
+      <Nav isAdmin={user.isAdmin} userId={user.id} />
       <main className="mx-auto max-w-4xl px-4 py-6">{children}</main>
     </div>
   );

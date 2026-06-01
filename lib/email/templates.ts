@@ -53,6 +53,17 @@ export function weekSummaryEmail(d: WeekSummaryData) {
   };
 }
 
+export function magicLinkEmail(url: string) {
+  const body = `
+    <p>Click below to sign in to the Survivor Pool. This link expires shortly and can only be used once.</p>
+    <p><a href="${url}" style="display:inline-block;background:#0b3d2e;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">Sign in →</a></p>
+    <p style="font-size:12px;color:#888">If you didn&apos;t request this, you can ignore this email.</p>`;
+  return {
+    subject: "Your Survivor Pool sign-in link",
+    html: shell("Sign in", body),
+  };
+}
+
 export function pickReminderEmail(week: number, urgent: boolean) {
   const body = `
     <p>${

@@ -1,7 +1,20 @@
 // Profile/career stats aggregations. Pure computation over rows the page loads,
-// so the math is testable independent of Supabase.
+// so the math is testable independent of the DB. Inputs use snake_case field
+// names matching what lib/queries/profile.ts returns.
 
-import type { EntryRow, PickRow } from "@/lib/database.types";
+interface CareerEntry {
+  id: string;
+  season_id: string;
+  eliminated_week: number | null;
+  final_rank: number | null;
+}
+interface CareerPick {
+  entry_id: string;
+  season_id: string;
+  week: number;
+  team_abbr: string;
+  result: string;
+}
 
 export interface CareerStats {
   seasonsPlayed: number;
@@ -16,8 +29,8 @@ export interface CareerStats {
 }
 
 export function computeCareerStats(
-  entries: Pick<EntryRow, "id" | "season_id" | "eliminated_week" | "final_rank">[],
-  picks: Pick<PickRow, "entry_id" | "season_id" | "week" | "team_abbr" | "result">[],
+  entries: CareerEntry[],
+  picks: CareerPick[],
 ): CareerStats {
   const wins = picks.filter((p) => p.result === "win").length;
   const losses = picks.filter((p) => p.result === "loss").length;

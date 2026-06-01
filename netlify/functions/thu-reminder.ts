@@ -1,12 +1,10 @@
 // Thursday ~9am ET: remind active players who haven't picked the current week.
 
 import type { Config } from "@netlify/functions";
-import {
-  adminClient,
-  getActiveSeason,
-  getActiveEntries,
-  nowET,
-} from "./_shared";
+import { getActiveSeason, getActivePaidEntries, nowET } from "./_shared";
+import { db } from "../../lib/db";
+import { picks } from "../../lib/db/schema";
+import { and, eq } from "drizzle-orm";
 import { sendEmail } from "../../lib/email/send";
 import { pickReminderEmail } from "../../lib/email/templates";
 
@@ -16,24 +14,19 @@ export default async function handler() {
     return new Response("outside ET window", { status: 200 });
   }
 
-  const admin = adminClient();
-  const season = await getActiveSeason(admin);
+  const season = await getActiveSeason();
   if (!season) return new Response("no active season", { status: 200 });
 
-  const entries = await getActiveEntries(admin, season.id);
-  const { data: picks } = await admin
-    .from("picks")
-    .select("entry_id")
-    .eq("season_id", season.id)
-    .eq("week", season.current_week);
-  const picked = new Set((picks ?? []).map((p) => p.entry_id));
+  const active = await getActivePaidEntries(season.id);
+  const pickRows = await db
+    .select({ entryId: picks.entryId })
+    .from(picks)
+    .where(and(eq(picks.seasonId, season.id), eq(picks.week, season.currentWeek)));
+  const picked = new Set(pickRows.map((p) => p.entryId));
 
-  const unpicked = entries.filter((e) => !picked.has(e.entryId) && e.email);
-  const { subject, html } = pickReminderEmail(season.current_week, false);
-
-  for (const e of unpicked) {
-    await sendEmail({ to: e.email, subject, html });
-  }
+  const unpicked = active.filter((e) => !picked.has(e.entryId) && e.email);
+  const { subject, html } = pickReminderEmail(season.currentWeek, false);
+  for (const e of unpicked) await sendEmail({ to: e.email, subject, html });
 
   return Response.json({ ok: true, reminded: unpicked.length });
 }

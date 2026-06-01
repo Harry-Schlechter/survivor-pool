@@ -2,7 +2,7 @@
 // be reused by both the client UI (to disable options) and the server route
 // (authoritative re-check). The DB RLS policies are the final hard gate.
 
-import type { SeasonPhase, PickBracket } from "@/lib/database.types";
+import type { SeasonPhase, PickBracket } from "@/lib/db/schema";
 
 export const MAX_TEAM_USES = 2; // per bracket-run, regular season only
 

@@ -1,17 +1,22 @@
-import { requireUser, getCurrentSeason, getMyEntry } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
-import { PickForm } from "@/components/pick-form";
 import Link from "next/link";
+import { requireUser } from "@/lib/auth/guards";
+import { getCurrentSeason, getEntry } from "@/lib/queries/seasons";
+import {
+  getWeekGames,
+  getEntryPicksInBracket,
+  getEntryWeekPick,
+} from "@/lib/queries/picks";
+import { PickForm } from "@/components/pick-form";
 
 export default async function PickPage() {
-  const { user } = await requireUser();
+  const user = await requireUser();
   const season = await getCurrentSeason();
 
   if (!season || season.status !== "active") {
     return <Notice>No week is open for picks right now.</Notice>;
   }
 
-  const entry = await getMyEntry(season.id, user.id);
+  const entry = await getEntry(season.id, user.id);
   if (!entry) {
     return (
       <Notice>
@@ -39,36 +44,18 @@ export default async function PickPage() {
     return <Notice>You&apos;ve been eliminated — no more picks. ☠️</Notice>;
   }
 
-  const supabase = createClient();
   const pickBracket = entry.bracket === "losers" ? "losers" : "main";
+  const weekGames = await getWeekGames(season.id, season.currentWeek);
+  const priorPicks = await getEntryPicksInBracket(entry.id, pickBracket);
+  const currentPick = await getEntryWeekPick(entry.id, season.currentWeek);
 
-  const { data: games } = await supabase
-    .from("games")
-    .select("*")
-    .eq("season_id", season.id)
-    .eq("week", season.current_week)
-    .order("kickoff", { ascending: true });
-
-  const { data: priorPicks } = await supabase
-    .from("picks")
-    .select("team_abbr,week,bracket")
-    .eq("entry_id", entry.id)
-    .eq("bracket", pickBracket);
-
-  const { data: currentPick } = await supabase
-    .from("picks")
-    .select("team_abbr")
-    .eq("entry_id", entry.id)
-    .eq("week", season.current_week)
-    .maybeSingle();
-
-  const locked = !!season.lock_at && new Date() >= new Date(season.lock_at);
+  const locked = !!season.lockAt && new Date() >= new Date(season.lockAt);
 
   // Usage counts for the 2x rule (exclude this week so re-picking is allowed).
   const usage: Record<string, number> = {};
-  for (const p of priorPicks ?? []) {
-    if (p.week === season.current_week) continue;
-    usage[p.team_abbr] = (usage[p.team_abbr] ?? 0) + 1;
+  for (const p of priorPicks) {
+    if (p.week === season.currentWeek) continue;
+    usage[p.teamAbbr] = (usage[p.teamAbbr] ?? 0) + 1;
   }
 
   return (
@@ -77,7 +64,7 @@ export default async function PickPage() {
         <h1 className="text-2xl font-bold text-field">
           {season.phase === "playoffs"
             ? "Playoff pick"
-            : `Week ${season.current_week} pick`}
+            : `Week ${season.currentWeek} pick`}
         </h1>
         <span className="text-sm text-gray-500">
           {pickBracket === "losers" ? "Losers bracket" : "Winners pool"}
@@ -94,17 +81,17 @@ export default async function PickPage() {
         <Notice>Picks are locked for this week. ⏰</Notice>
       ) : (
         <PickForm
-          games={(games ?? []).map((g) => ({
+          games={weekGames.map((g) => ({
             id: g.id,
-            homeAbbr: g.home_abbr,
-            awayAbbr: g.away_abbr,
-            kickoff: g.kickoff,
-            spreadDetail: g.spread_detail,
-            overUnder: g.over_under,
+            homeAbbr: g.homeAbbr,
+            awayAbbr: g.awayAbbr,
+            kickoff: g.kickoff.toISOString(),
+            spreadDetail: g.spreadDetail,
+            overUnder: g.overUnder != null ? Number(g.overUnder) : null,
           }))}
           usage={usage}
-          phase={season.phase}
-          currentPick={currentPick?.team_abbr ?? null}
+          phase={season.phase as "regular" | "playoffs"}
+          currentPick={currentPick?.teamAbbr ?? null}
         />
       )}
     </div>

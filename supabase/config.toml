@@ -1,5 +1,0 @@
-# Minimal Supabase CLI config. `project_id` is set on `supabase link`.
-project_id = "survivor-pool"
-
-[db]
-major_version = 15
