@@ -7,15 +7,25 @@
 
 # Scheduled functions (cron in UTC). ET-sensitive jobs verify the local
 # window inside the handler so DST shifts don't misfire.
+
+# Every 15 min: pull ESPN scores and grade finals as games complete.
 [functions."sync-scores"]
   schedule = "*/15 * * * *"
 
+# Tue ~3am ET: final-grade the week, advance to next week (auto playoffs after
+# wk18), recompute lock time. Fires at both UTC hours that map to 3am ET; the
+# handler runs only inside the 3am ET hour.
+[functions."weekly-rollover"]
+  schedule = "0 7,8 * * 2"
+
 [functions."tue-summary"]
-  # ~9am ET Tuesday (13:00 UTC during EST, 14:00 during EDT — handler no-ops outside the ET window)
-  schedule = "0 13 * * 2"
+  # ~9am ET Tuesday — after the 3am rollover, so the recap reflects the new week.
+  # 13:00 UTC (EST) / 14:00 UTC (EDT); handler no-ops outside the ET window.
+  schedule = "0 13,14 * * 2"
 
 [functions."thu-reminder"]
-  schedule = "0 13 * * 4"
+  # ~9am ET Thursday; 13:00 UTC (EST) / 14:00 UTC (EDT); handler runs once at 9am ET.
+  schedule = "0 13,14 * * 4"
 
 [functions."lock-reminder"]
   schedule = "0 * * * *"

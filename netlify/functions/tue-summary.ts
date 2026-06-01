@@ -1,5 +1,8 @@
-// Tuesday ~9am ET: email everyone the prior week's recap. Cron fires 13:00 UTC;
-// the ET-window guard keeps it on Tuesday morning across DST.
+// Tuesday ~9am ET: email everyone the recap of the week that just finished.
+// This runs AFTER the 3am-ET weekly-rollover, which already graded that week
+// and advanced current_week — so the completed week is current_week - 1.
+// Cron fires at 13:00 + 14:00 UTC (covers EST + EDT); the exact-9am-ET guard
+// makes the handler execute only once.
 
 import type { Config } from "@netlify/functions";
 import { getActiveSeason, getActivePaidEntries, nowET } from "./_shared";
@@ -11,14 +14,16 @@ import { weekSummaryEmail } from "../../lib/email/templates";
 
 export default async function handler() {
   const et = nowET();
-  if (et.weekday !== 2 || et.hour < 8 || et.hour > 11) {
-    return new Response("outside ET window", { status: 200 });
+  if (et.weekday !== 2 || et.hour !== 9) {
+    return new Response("outside Tue 9am ET window", { status: 200 });
   }
 
   const season = await getActiveSeason();
   if (!season) return new Response("no active season", { status: 200 });
 
-  const summaryWeek = season.currentWeek;
+  // The rollover already advanced the week, so the just-completed week is the
+  // one before current_week (floor at 1 for safety).
+  const summaryWeek = Math.max(1, season.currentWeek - 1);
   const active = await getActivePaidEntries(season.id);
 
   const elimRows = await db

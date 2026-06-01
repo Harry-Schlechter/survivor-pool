@@ -10,8 +10,8 @@ import { pickReminderEmail } from "../../lib/email/templates";
 
 export default async function handler() {
   const et = nowET();
-  if (et.weekday !== 4 || et.hour < 8 || et.hour > 11) {
-    return new Response("outside ET window", { status: 200 });
+  if (et.weekday !== 4 || et.hour !== 9) {
+    return new Response("outside Thu 9am ET window", { status: 200 });
   }
 
   const season = await getActiveSeason();

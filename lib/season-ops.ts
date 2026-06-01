@@ -177,16 +177,132 @@ export async function syncAndGradeCurrentWeek(
   };
 }
 
-/** Advance to the next week and refresh its lock time. */
-export async function advanceWeek(
-  season: SeasonRow,
-): Promise<{ week: number; lockAt: Date | null }> {
-  const nextWeek = season.currentWeek + 1;
-  const updated: SeasonRow = { ...season, currentWeek: nextWeek };
-  const lockAt = await refreshLockAt(updated);
+// NFL regular season is weeks 1-18 (ESPN seasontype 2). After week 18 the
+// playoffs begin (seasontype 3): week 1 = Wild Card ... week 4 = Super Bowl.
+const REGULAR_SEASON_WEEKS = 18;
+
+/** Count entries still alive (main or losers) in a season. */
+export async function aliveCount(seasonId: string): Promise<number> {
+  const rows = await db
+    .select({ bracket: entries.bracket })
+    .from(entries)
+    .where(and(eq(entries.seasonId, seasonId), eq(entries.paid, true)));
+  return rows.filter((r) => r.bracket === "main" || r.bracket === "losers")
+    .length;
+}
+
+export interface AdvanceResult {
+  phase: "regular" | "playoffs";
+  week: number;
+  lockAt: Date | null;
+  enteredPlayoffs: boolean;
+}
+
+/**
+ * Advance to the next week and refresh its lock time. Crossing from regular-
+ * season week 18 into the playoffs flips `phase` to 'playoffs' and resets the
+ * week counter to postseason week 1 (Wild Card) — so the regular→playoffs
+ * transition follows the real NFL calendar via ESPN's seasontype, no dates.
+ */
+export async function advanceWeek(season: SeasonRow): Promise<AdvanceResult> {
+  let nextPhase: "regular" | "playoffs" = season.phase as
+    | "regular"
+    | "playoffs";
+  let nextWeek = season.currentWeek + 1;
+  let enteredPlayoffs = false;
+
+  if (season.phase === "regular" && season.currentWeek >= REGULAR_SEASON_WEEKS) {
+    nextPhase = "playoffs";
+    nextWeek = 1; // ESPN postseason week 1 = Wild Card
+    enteredPlayoffs = true;
+  }
+
   await db
     .update(seasons)
-    .set({ currentWeek: nextWeek })
+    .set({ phase: nextPhase, currentWeek: nextWeek })
     .where(eq(seasons.id, season.id));
-  return { week: nextWeek, lockAt };
+
+  const updated: SeasonRow = {
+    ...season,
+    phase: nextPhase,
+    currentWeek: nextWeek,
+  };
+  const lockAt = await refreshLockAt(updated);
+  return { phase: nextPhase, week: nextWeek, lockAt, enteredPlayoffs };
+}
+
+export interface RolloverReport {
+  ran: boolean;
+  grade: GradeReport | null;
+  advanced: AdvanceResult | null;
+  completed: boolean;
+  note: string;
+}
+
+/**
+ * The weekly Tuesday-3am-ET rollover. Idempotent and safe to re-run:
+ *   1. Final-grade the current week (grades whatever is final; pending picks on
+ *      unfinished games stay pending and the 15-min sync settles them later).
+ *   2. Advance to the next week (regular→playoffs auto-flip after week 18).
+ *   3. Recompute lock_at = first kickoff of the new week.
+ * If nobody is left alive after grading, the season is marked complete instead
+ * of advancing. Sends NO email — that's the separate summary/reminder jobs.
+ */
+export async function rolloverWeek(season: SeasonRow): Promise<RolloverReport> {
+  const grade = await syncAndGradeCurrentWeek(season);
+
+  // Re-read alive count after grading.
+  const alive = await aliveCount(season.id);
+  if (alive === 0) {
+    await db
+      .update(seasons)
+      .set({ status: "complete" })
+      .where(eq(seasons.id, season.id));
+    return {
+      ran: true,
+      grade,
+      advanced: null,
+      completed: true,
+      note: "No players remain — season marked complete.",
+    };
+  }
+
+  // Re-read the season (phase/week may be unchanged but be explicit).
+  const fresh =
+    (await db.select().from(seasons).where(eq(seasons.id, season.id)).limit(1))[0] ??
+    season;
+  const advanced = await advanceWeek(fresh);
+
+  // If we just advanced into the playoffs but ESPN returned no games for the new
+  // week (e.g. season truly over), complete the season.
+  if (advanced.lockAt === null && advanced.enteredPlayoffs) {
+    const games2 = await syncWeekGames({
+      ...fresh,
+      phase: advanced.phase,
+      currentWeek: advanced.week,
+    });
+    if (games2.length === 0) {
+      await db
+        .update(seasons)
+        .set({ status: "complete" })
+        .where(eq(seasons.id, season.id));
+      return {
+        ran: true,
+        grade,
+        advanced,
+        completed: true,
+        note: "No postseason games found — season complete.",
+      };
+    }
+  }
+
+  return {
+    ran: true,
+    grade,
+    advanced,
+    completed: false,
+    note: advanced.enteredPlayoffs
+      ? `Entered playoffs (week ${advanced.week}).`
+      : `Advanced to week ${advanced.week}.`,
+  };
 }
