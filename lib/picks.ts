@@ -4,7 +4,9 @@
 
 import type { SeasonPhase, PickBracket } from "@/lib/db/schema";
 
-export const MAX_TEAM_USES = 2; // per bracket-run, regular season only
+// Season-long cap, regular season only. Usage is NOT reset by dropping into
+// the losers bracket — a team burned twice in the winners pool stays spent.
+export const MAX_TEAM_USES = 2;
 
 export interface WeekGameLite {
   homeAbbr: string;
@@ -18,8 +20,8 @@ export interface ValidatePickInput {
   lockAt: string | null; // ISO; null = not yet set (treat as open)
   now: Date;
   weekGames: WeekGameLite[];
-  /** This entry's prior picks IN THE SAME BRACKET this season (team_abbr list). */
-  priorTeamAbbrsThisBracket: string[];
+  /** This entry's prior picks across the WHOLE season, both brackets. */
+  priorTeamAbbrsThisSeason: string[];
   entryPaid: boolean;
   entryActive: boolean; // bracket is 'main' or 'losers' (not 'eliminated')
 }
@@ -44,10 +46,10 @@ function teamPlaysThisWeek(team: string, games: WeekGameLite[]): boolean {
 export function remainingUses(
   teamAbbr: string,
   phase: SeasonPhase,
-  priorTeamAbbrsThisBracket: string[],
+  priorTeamAbbrsThisSeason: string[],
 ): number {
   if (phase === "playoffs") return Infinity; // cap lifted in playoffs
-  const used = priorTeamAbbrsThisBracket.filter((t) => t === teamAbbr).length;
+  const used = priorTeamAbbrsThisSeason.filter((t) => t === teamAbbr).length;
   return Math.max(0, MAX_TEAM_USES - used);
 }
 
@@ -64,7 +66,7 @@ export function validatePick(input: ValidatePickInput): ValidationResult {
   }
 
   if (input.phase === "regular") {
-    const used = input.priorTeamAbbrsThisBracket.filter(
+    const used = input.priorTeamAbbrsThisSeason.filter(
       (t) => t === input.teamAbbr,
     ).length;
     if (used >= MAX_TEAM_USES) {

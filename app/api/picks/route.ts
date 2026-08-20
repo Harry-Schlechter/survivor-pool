@@ -4,7 +4,7 @@ import { getSessionUser } from "@/lib/auth/guards";
 import { getCurrentSeason, getEntry } from "@/lib/queries/seasons";
 import {
   getWeekGames,
-  getEntryPicksInBracket,
+  getEntrySeasonPicks,
   upsertPick,
 } from "@/lib/queries/picks";
 import { validatePick } from "@/lib/picks";
@@ -35,7 +35,9 @@ export async function POST(request: NextRequest) {
 
   const pickBracket = entry.bracket === "losers" ? "losers" : "main";
   const weekGames = await getWeekGames(season.id, season.currentWeek);
-  const priorPicks = await getEntryPicksInBracket(entry.id, pickBracket);
+  // Season-wide, not per-bracket: the two-use cap follows the player across a
+  // drop into the losers bracket.
+  const priorPicks = await getEntrySeasonPicks(entry.id);
   const priorTeamAbbrs = priorPicks
     .filter((p) => p.week !== season.currentWeek) // exclude this week (re-pick)
     .map((p) => p.teamAbbr);
@@ -50,7 +52,7 @@ export async function POST(request: NextRequest) {
       homeAbbr: g.homeAbbr,
       awayAbbr: g.awayAbbr,
     })),
-    priorTeamAbbrsThisBracket: priorTeamAbbrs,
+    priorTeamAbbrsThisSeason: priorTeamAbbrs,
     entryPaid: entry.paid,
     entryActive: entry.bracket === "main" || entry.bracket === "losers",
   });

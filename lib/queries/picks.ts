@@ -12,15 +12,18 @@ export async function getWeekGames(seasonId: string, week: number) {
     .orderBy(games.kickoff);
 }
 
-/** An entry's prior picks within a bracket (for the 2x-usage rule). */
-export async function getEntryPicksInBracket(
-  entryId: string,
-  bracket: PickBracket,
-) {
+/**
+ * An entry's prior picks for the whole season (for the 2x-usage rule).
+ *
+ * Deliberately NOT scoped to a bracket: the two-use cap runs across the entire
+ * season, so picks made in the winners pool still count against a player after
+ * they drop to the losers bracket.
+ */
+export async function getEntrySeasonPicks(entryId: string) {
   return db
     .select({ teamAbbr: picks.teamAbbr, week: picks.week, bracket: picks.bracket })
     .from(picks)
-    .where(and(eq(picks.entryId, entryId), eq(picks.bracket, bracket)));
+    .where(eq(picks.entryId, entryId));
 }
 
 /** An entry's pick for a given week, if any. */

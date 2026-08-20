@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth/guards";
 import { getCurrentSeason, getEntry } from "@/lib/queries/seasons";
 import {
   getWeekGames,
-  getEntryPicksInBracket,
+  getEntrySeasonPicks,
   getEntryWeekPick,
 } from "@/lib/queries/picks";
 import { PickForm } from "@/components/pick-form";
@@ -46,7 +46,9 @@ export default async function PickPage() {
 
   const pickBracket = entry.bracket === "losers" ? "losers" : "main";
   const weekGames = await getWeekGames(season.id, season.currentWeek);
-  const priorPicks = await getEntryPicksInBracket(entry.id, pickBracket);
+  // Season-wide: the two-use cap carries over into the losers bracket, so the
+  // UI must grey out teams a player already burned in the winners pool.
+  const priorPicks = await getEntrySeasonPicks(entry.id);
   const currentPick = await getEntryWeekPick(entry.id, season.currentWeek);
 
   const locked = !!season.lockAt && new Date() >= new Date(season.lockAt);

@@ -20,7 +20,9 @@ export default function RulesPage() {
         </Rule>
         <Rule title="The two-time rule">
           During the regular season you may use any team{" "}
-          <strong>at most twice</strong>. Choose wisely.
+          <strong>at most twice — for the whole season</strong>. That cap
+          follows you everywhere: picks you burned in the winners pool still
+          count against you in the losers bracket. Choose wisely.
         </Rule>
         <Rule title="Win or you drop">
           Pick the winner and you survive. Pick a loser — or a tie, or forget to
@@ -28,9 +30,10 @@ export default function RulesPage() {
           (winners) pool drops you into the <strong>losers bracket</strong>. Lose
           there and you&apos;re out for good.
         </Rule>
-        <Rule title="Fresh slate in the losers bracket">
-          When you enter the losers bracket, your two-time team usage resets —
-          all teams are available again for the consolation run.
+        <Rule title="No fresh slate in the losers bracket">
+          Dropping into the losers bracket does <strong>not</strong> reset your
+          team usage. If you already used a team twice, it stays off the board
+          for the rest of the regular season.
         </Rule>
         <Rule title="Playoffs">
           If players are still alive when the playoffs start, everyone keeps

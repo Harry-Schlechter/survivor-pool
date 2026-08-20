@@ -14,7 +14,7 @@ function input(overrides: Partial<ValidatePickInput> = {}): ValidatePickInput {
     lockAt: "2024-09-06T00:40:00Z",
     now: new Date("2024-09-05T12:00:00Z"), // before lock
     weekGames: baseGames,
-    priorTeamAbbrsThisBracket: [],
+    priorTeamAbbrsThisSeason: [],
     entryPaid: true,
     entryActive: true,
     ...overrides,
@@ -52,13 +52,13 @@ describe("validatePick", () => {
 
   it("rejects a 3rd use of the same team in the regular season", () => {
     expect(
-      validatePick(input({ priorTeamAbbrsThisBracket: ["KC", "KC"] })).error,
+      validatePick(input({ priorTeamAbbrsThisSeason: ["KC", "KC"] })).error,
     ).toBe("team_used_max");
   });
 
   it("allows a 2nd use of a team", () => {
     expect(
-      validatePick(input({ priorTeamAbbrsThisBracket: ["KC"] })).ok,
+      validatePick(input({ priorTeamAbbrsThisSeason: ["KC"] })).ok,
     ).toBe(true);
   });
 
@@ -67,18 +67,27 @@ describe("validatePick", () => {
       validatePick(
         input({
           phase: "playoffs",
-          priorTeamAbbrsThisBracket: ["KC", "KC", "KC"],
+          priorTeamAbbrsThisSeason: ["KC", "KC", "KC"],
         }),
       ).ok,
     ).toBe(true);
   });
 
-  it("does not count other brackets' usage (fresh slate per bracket-run)", () => {
-    // priorTeamAbbrsThisBracket is already scoped to the current bracket, so a
-    // losers-bracket entry with no losers picks sees KC as unused.
+  it("carries winners-pool usage into the losers bracket", () => {
+    // The two-use cap is season-long: dropping to the losers bracket does NOT
+    // hand back teams already burned in the winners pool.
     expect(
-      validatePick(input({ bracket: "losers", priorTeamAbbrsThisBracket: [] }))
-        .ok,
+      validatePick(
+        input({ bracket: "losers", priorTeamAbbrsThisSeason: ["KC", "KC"] }),
+      ).error,
+    ).toBe("team_used_max");
+  });
+
+  it("allows a team in the losers bracket when only used once overall", () => {
+    expect(
+      validatePick(
+        input({ bracket: "losers", priorTeamAbbrsThisSeason: ["KC"] }),
+      ).ok,
     ).toBe(true);
   });
 });
