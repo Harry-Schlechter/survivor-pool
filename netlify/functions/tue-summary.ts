@@ -9,7 +9,7 @@ import { getActiveSeason, getActivePaidEntries, nowET } from "./_shared";
 import { db } from "../../lib/db";
 import { entries, picks, user } from "../../lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { sendEmail } from "../../lib/email/send";
+import { sendEachEmail } from "../../lib/email/send";
 import { weekSummaryEmail } from "../../lib/email/templates";
 
 export default async function handler() {
@@ -62,10 +62,13 @@ export default async function handler() {
     nextWeek: summaryWeek + 1,
   });
 
+  // Send individually rather than one message with everyone in `to:` — a shared
+  // to-list would expose every player's address to the whole pool, and a single
+  // bad address would fail the entire recap.
   const recipients = active.map((e) => e.email).filter(Boolean);
-  if (recipients.length > 0) await sendEmail({ to: recipients, subject, html });
+  const { sent, failed } = await sendEachEmail(recipients, subject, html);
 
-  return Response.json({ ok: true, recipients: recipients.length });
+  return Response.json({ ok: true, sent, failed: failed.length });
 }
 
 export const config: Config = {

@@ -7,7 +7,7 @@ import { getActiveSeason, getActivePaidEntries } from "./_shared";
 import { db } from "../../lib/db";
 import { picks, notifications } from "../../lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { sendEmail } from "../../lib/email/send";
+import { sendEachEmail } from "../../lib/email/send";
 import { pickReminderEmail } from "../../lib/email/templates";
 
 const WINDOW_MS = 75 * 60 * 1000;
@@ -48,19 +48,24 @@ export default async function handler() {
   );
   const { subject, html } = pickReminderEmail(season.currentWeek, true);
 
-  let count = 0;
-  for (const e of targets) {
-    await sendEmail({ to: e.email, subject, html });
-    await db.insert(notifications).values({
-      seasonId: season.id,
-      week: season.currentWeek,
-      kind: "lock_reminder",
-      entryId: e.entryId,
-    });
-    count++;
-  }
+  const entryByEmail = new Map(targets.map((e) => [e.email, e.entryId]));
+  const { sent, failed } = await sendEachEmail(
+    targets.map((e) => e.email),
+    subject,
+    html,
+    // Record the dedupe row only after a confirmed send. A failed send stays
+    // un-recorded so the next hourly run retries it while there's still time.
+    async (email) => {
+      await db.insert(notifications).values({
+        seasonId: season.id,
+        week: season.currentWeek,
+        kind: "lock_reminder",
+        entryId: entryByEmail.get(email)!,
+      });
+    },
+  );
 
-  return Response.json({ ok: true, reminded: count });
+  return Response.json({ ok: true, reminded: sent, failed: failed.length });
 }
 
 export const config: Config = {

@@ -21,9 +21,14 @@ export const env = {
   resendApiKey: () => required("RESEND_API_KEY", process.env.RESEND_API_KEY),
   emailFrom: () =>
     process.env.EMAIL_FROM || "Survivor Pool <onboarding@resend.dev>",
+  // Trailing slash is stripped: callers append paths ("/pick"), and a stored
+  // value ending in "/" would otherwise yield "//pick" and break the Better
+  // Auth callback origin match.
   siteUrl: () =>
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.BETTER_AUTH_URL ||
-    "http://localhost:3000",
+    (
+      process.env.NEXT_PUBLIC_SITE_URL ||
+      process.env.BETTER_AUTH_URL ||
+      "http://localhost:3000"
+    ).replace(/\/+$/, ""),
   cronSecret: () => required("CRON_SECRET", process.env.CRON_SECRET),
 };

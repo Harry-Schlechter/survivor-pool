@@ -14,10 +14,49 @@ export interface SendArgs {
 }
 
 export async function sendEmail({ to, subject, html }: SendArgs) {
-  return client().emails.send({
+  const res = await client().emails.send({
     from: env.emailFrom(),
     to,
     subject,
     html,
   });
+  // The Resend SDK resolves (not rejects) on API errors — surface them so
+  // callers don't record a send that never happened.
+  if (res.error) {
+    throw new Error(`Resend send failed: ${res.error.message ?? res.error}`);
+  }
+  return res;
+}
+
+/**
+ * Send the same message to many recipients individually, isolating failures.
+ * One bad address (bounce, rate limit) must not stop the rest of the batch —
+ * these run in unattended scheduled functions where a throw means the
+ * remaining players silently never get their reminder.
+ */
+export async function sendEachEmail(
+  recipients: string[],
+  subject: string,
+  html: string,
+  onSent?: (email: string) => Promise<void>,
+): Promise<{ sent: number; failed: { email: string; error: string }[] }> {
+  let sent = 0;
+  const failed: { email: string; error: string }[] = [];
+
+  for (const email of recipients) {
+    try {
+      await sendEmail({ to: email, subject, html });
+      // Only mark as delivered after a confirmed send, so a failure stays
+      // eligible for the next run instead of being deduped away.
+      if (onSent) await onSent(email);
+      sent++;
+    } catch (err) {
+      failed.push({ email, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  if (failed.length > 0) {
+    console.error(`sendEachEmail: ${failed.length} failed`, failed);
+  }
+  return { sent, failed };
 }

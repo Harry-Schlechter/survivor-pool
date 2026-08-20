@@ -5,7 +5,7 @@ import { getActiveSeason, getActivePaidEntries, nowET } from "./_shared";
 import { db } from "../../lib/db";
 import { picks } from "../../lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { sendEmail } from "../../lib/email/send";
+import { sendEachEmail } from "../../lib/email/send";
 import { pickReminderEmail } from "../../lib/email/templates";
 
 export default async function handler() {
@@ -26,9 +26,13 @@ export default async function handler() {
 
   const unpicked = active.filter((e) => !picked.has(e.entryId) && e.email);
   const { subject, html } = pickReminderEmail(season.currentWeek, false);
-  for (const e of unpicked) await sendEmail({ to: e.email, subject, html });
+  const { sent, failed } = await sendEachEmail(
+    unpicked.map((e) => e.email),
+    subject,
+    html,
+  );
 
-  return Response.json({ ok: true, reminded: unpicked.length });
+  return Response.json({ ok: true, reminded: sent, failed: failed.length });
 }
 
 export const config: Config = {
