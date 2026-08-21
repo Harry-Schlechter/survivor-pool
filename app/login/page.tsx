@@ -28,13 +28,25 @@ export default function LoginPage() {
       <h1 className="mb-2 text-3xl font-bold text-field">
         🏈 Jim Olah Survivor Pool
       </h1>
-      <p className="mb-8 text-gray-600">
+      <p className="mb-2 text-gray-600">
         Sign in with a magic link — no password needed.
+      </p>
+      <p className="mb-8 text-sm text-gray-500">
+        The link arrives by email — if it&apos;s not there in a minute, check
+        your spam or junk folder.
       </p>
 
       {sent ? (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">
-          Check your email for a sign-in link. You can close this tab.
+        <div className="space-y-3">
+          <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-green-800">
+            Check your email for a sign-in link. You can close this tab.
+          </div>
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <strong>Don&apos;t see it?</strong> Check your{" "}
+            <strong>spam or junk folder</strong> — sign-in links often land
+            there, especially on AOL, Yahoo and Hotmail. Mark it{" "}
+            <em>not spam</em> so future pool emails reach your inbox.
+          </div>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -14,9 +14,24 @@ export default function RulesPage() {
           and you&apos;re entered once the admin confirms your payment.
         </Rule>
         <Rule title="Pick one team every week">
-          Each week, pick one team you think will <strong>win</strong>. Picks
-          lock at the first game of the week (usually Thursday ~8pm ET). After
+          Each week, pick one team you think will <strong>win</strong>. After
           lock, everyone&apos;s picks are revealed.
+        </Rule>
+        <Rule title="The deadline: first kickoff">
+          Picks are due at the{" "}
+          <strong>kickoff of the first game of the week</strong> — usually
+          Thursday night, but it moves for Thanksgiving, Christmas and other
+          special weeks, so always check the pick page. The site locks entries{" "}
+          <strong>automatically</strong> at that moment. Once it locks, nothing
+          can be changed or submitted, and a missing pick counts as a{" "}
+          <strong>loss</strong>.
+        </Rule>
+        <Rule title="You'll be reminded automatically">
+          You don&apos;t have to remember on your own. If you haven&apos;t
+          picked, the site emails you <strong>Thursday morning</strong> and
+          again <strong>about an hour before kickoff</strong> as a last call.
+          Both are sent only to players who still haven&apos;t entered a pick —
+          once yours is in, the reminders stop.
         </Rule>
         <Rule title="The two-time rule">
           During the regular season you may use any team{" "}
