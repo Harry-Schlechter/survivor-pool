@@ -1,10 +1,7 @@
-export default function RulesPage() {
+export function RulesContent() {
   return (
-    <main className="mx-auto max-w-2xl px-6 py-10">
-      <a href="/" className="text-sm text-field underline">
-        ← Back
-      </a>
-      <h1 className="mb-6 mt-4 text-3xl font-bold text-field">
+    <div className="mx-auto max-w-2xl">
+      <h1 className="mb-6 text-2xl font-bold text-field">
         🏈 How the Jim Olah Survivor Pool works
       </h1>
 
@@ -86,7 +83,7 @@ export default function RulesPage() {
           for help with signups, payment, picks, or anything that looks broken.
         </Rule>
       </div>
-    </main>
+    </div>
   );
 }
 

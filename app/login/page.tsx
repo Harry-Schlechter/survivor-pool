@@ -70,7 +70,7 @@ export default function LoginPage() {
       )}
 
       <a
-        href="/rules"
+        href="/how-it-works"
         className="mt-8 text-center text-sm text-gray-500 underline"
       >
         How the pool works →

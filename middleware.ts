@@ -8,8 +8,12 @@ import { getSessionCookie } from "better-auth/cookies";
 // rather than DB calls).
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  // /how-it-works is the public copy of the rules (linked from the login page).
+  // /rules is the in-app tab and lives behind auth with the rest of the shell.
   const isPublic =
-    path === "/login" || path.startsWith("/auth") || path === "/rules";
+    path === "/login" ||
+    path.startsWith("/auth") ||
+    path === "/how-it-works";
 
   if (isPublic) return NextResponse.next();
 

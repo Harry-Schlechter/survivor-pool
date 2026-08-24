@@ -30,8 +30,10 @@ export default async function Dashboard() {
     user.id,
   );
 
+  // Not gated on paid — picking no longer requires a confirmed buy-in, so an
+  // unpaid player still needs the "make your pick" nudge.
   const myActive =
-    myEntry?.paid &&
+    !!myEntry &&
     (myEntry.bracket === "main" || myEntry.bracket === "losers");
   const myRow = [...standings.main, ...standings.losers].find(
     (r) => r.entryId === myEntry?.id,
