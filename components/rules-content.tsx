@@ -7,8 +7,11 @@ export function RulesContent() {
 
       <div className="space-y-5 text-gray-800">
         <Rule title="Sign up & pay">
-          Each NFL season opens with a signup window. Pay the buy-in via Venmo
-          and you&apos;re entered once the admin confirms your payment.
+          Each NFL season opens with a signup window. After you sign up, pay the
+          buy-in to Lou — <strong>Venmo @Lou-Hirsch</strong> or{" "}
+          <strong>cash in person</strong>. Lou marks you as paid once he has it.
+          You can make your picks right away; you don&apos;t have to wait to be
+          marked paid.
         </Rule>
         <Rule title="Pick one team every week">
           Each week, pick one team you think will <strong>win</strong>. After

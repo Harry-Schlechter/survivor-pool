@@ -23,28 +23,36 @@ export default async function SignupPage() {
       <div className="rounded-lg border border-gray-200 p-5">
         <h2 className="mb-2 font-semibold">Buy-in: ${season.buyIn}</h2>
         {season.venmoLink || season.venmoHandle ? (
-          <p className="text-sm text-gray-700">
-            Pay via Venmo:{" "}
-            {season.venmoLink ? (
-              <a
-                href={season.venmoLink}
-                target="_blank"
-                rel="noreferrer"
-                className="font-semibold text-field underline"
-              >
-                {season.venmoHandle || "Open Venmo"}
-              </a>
-            ) : (
-              <span className="font-semibold">{season.venmoHandle}</span>
-            )}
-          </p>
+          <div className="space-y-1.5 text-sm text-gray-700">
+            <p>Pay Lou after you sign up — either way works:</p>
+            <p>
+              <span className="text-gray-500">Venmo</span>{" "}
+              {season.venmoLink ? (
+                <a
+                  href={season.venmoLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="font-semibold text-field underline"
+                >
+                  {season.venmoHandle || "Open Venmo"}
+                </a>
+              ) : (
+                <span className="font-semibold">{season.venmoHandle}</span>
+              )}
+            </p>
+            <p>
+              <span className="text-gray-500">or</span>{" "}
+              <span className="font-semibold">cash in person</span>
+            </p>
+          </div>
         ) : (
           <p className="text-sm text-gray-500">
             Payment details will be posted soon.
           </p>
         )}
-        <p className="mt-2 text-xs text-gray-500">
-          Include your name in the Venmo note. The admin confirms each payment.
+        <p className="mt-3 text-xs text-gray-500">
+          Include your name in the Venmo note. Lou marks you as paid once he has
+          it — you can make your picks right away without waiting.
         </p>
       </div>
 
