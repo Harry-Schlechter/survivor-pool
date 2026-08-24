@@ -1,9 +1,17 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { updateDisplayName } from "@/app/(app)/profile/actions";
-import { MAX_DISPLAY_NAME, type UpdateNameResult } from "@/lib/profile";
+import { MAX_DISPLAY_NAME } from "@/lib/profile";
 
+/**
+ * Inline display-name editor.
+ *
+ * Uses plain useState and calls the server action directly, rather than
+ * useActionState — this project is on React 18, where that hook (and
+ * useFormState / useFormStatus) does not exist.
+ */
 export function DisplayNameForm({
   current,
   startOpen = false,
@@ -12,17 +20,34 @@ export function DisplayNameForm({
   /** Open the editor immediately — used when the player has no name yet. */
   startOpen?: boolean;
 }) {
+  const router = useRouter();
   const [open, setOpen] = useState(startOpen);
-  const [state, formAction, pending] = useActionState<
-    UpdateNameResult | null,
-    FormData
-  >(updateDisplayName, null);
+  const [value, setValue] = useState(current);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
-  // Close the editor once a save succeeds. In an effect, not during render —
-  // setting state while rendering warns and can loop.
-  useEffect(() => {
-    if (state?.ok) setOpen(false);
-  }, [state]);
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setPending(true);
+    setError(null);
+
+    const fd = new FormData();
+    fd.set("display_name", value);
+
+    try {
+      const result = await updateDisplayName(null, fd);
+      if (result.ok) {
+        setOpen(false);
+        router.refresh(); // re-render server components with the new name
+      } else {
+        setError(result.error);
+      }
+    } catch {
+      setError("Couldn't save. Try again.");
+    } finally {
+      setPending(false);
+    }
+  }
 
   if (!open) {
     return (
@@ -37,10 +62,11 @@ export function DisplayNameForm({
   }
 
   return (
-    <form action={formAction} className="flex flex-wrap items-center gap-2">
+    <form onSubmit={handleSubmit} className="flex flex-wrap items-center gap-2">
       <input
         name="display_name"
-        defaultValue={current}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
         maxLength={MAX_DISPLAY_NAME}
         required
         autoFocus
@@ -56,14 +82,16 @@ export function DisplayNameForm({
       </button>
       <button
         type="button"
-        onClick={() => setOpen(false)}
+        onClick={() => {
+          setValue(current);
+          setError(null);
+          setOpen(false);
+        }}
         className="px-2 py-2 text-sm text-gray-500 underline"
       >
         Cancel
       </button>
-      {state && !state.ok && (
-        <p className="w-full text-sm text-red-600">{state.error}</p>
-      )}
+      {error && <p className="w-full text-sm text-red-600">{error}</p>}
     </form>
   );
 }
