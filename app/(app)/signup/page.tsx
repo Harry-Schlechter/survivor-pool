@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/auth/guards";
 import { getCurrentSeason, getEntry } from "@/lib/queries/seasons";
 import { SignupActions } from "@/components/signup-actions";
+import { DisplayNameForm } from "@/components/display-name-form";
 
 export default async function SignupPage() {
   const user = await requireUser();
@@ -45,6 +46,30 @@ export default async function SignupPage() {
         <p className="mt-2 text-xs text-gray-500">
           Include your name in the Venmo note. The admin confirms each payment.
         </p>
+      </div>
+
+      {/* New accounts start with no display name, which would show as
+          "Unnamed player" in the standings and in the weekly recap emails.
+          Prompt for one here, where everyone passes through on the way in. */}
+      <div className="rounded-lg border border-gray-200 p-5">
+        <h2 className="mb-1 font-semibold">
+          {user.displayName ? "Your name in the pool" : "Pick a display name"}
+        </h2>
+        <p className="mb-3 text-sm text-gray-600">
+          {user.displayName
+            ? "This is how you appear in the standings and weekly emails."
+            : "This is how you'll appear in the standings and weekly emails."}
+        </p>
+        {user.displayName ? (
+          <p className="flex flex-wrap items-center gap-3">
+            <span className="font-semibold text-field">
+              {user.displayName}
+            </span>
+            <DisplayNameForm current={user.displayName} />
+          </p>
+        ) : (
+          <DisplayNameForm current="" startOpen />
+        )}
       </div>
 
       <SignupActions

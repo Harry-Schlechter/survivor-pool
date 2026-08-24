@@ -1,4 +1,5 @@
 import { requireUser } from "@/lib/auth/guards";
+import { DisplayNameForm } from "@/components/display-name-form";
 import { getProfile, getCareerData } from "@/lib/queries/profile";
 import { computeCareerStats } from "@/lib/stats";
 import { teamName } from "@/lib/teams";
@@ -9,7 +10,7 @@ export default async function ProfilePage({
 }: {
   params: { id: string };
 }) {
-  await requireUser();
+  const me = await requireUser();
 
   const profile = await getProfile(params.id);
   if (!profile) {
@@ -21,7 +22,14 @@ export default async function ProfilePage({
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-field">{profile.displayName}</h1>
+      <div className="space-y-2">
+        <h1 className="text-2xl font-bold text-field">
+          {profile.displayName || "Unnamed player"}
+        </h1>
+        {me.id === params.id && (
+          <DisplayNameForm current={profile.displayName} />
+        )}
+      </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Seasons" value={stats.seasonsPlayed} />
