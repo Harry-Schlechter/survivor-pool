@@ -28,18 +28,6 @@ export default async function PickPage() {
       </Notice>
     );
   }
-  if (!entry.paid) {
-    return (
-      <Notice>
-        Your entry isn&apos;t marked paid yet, so you can&apos;t pick. Send the
-        buy-in and confirm on the{" "}
-        <Link href="/signup" className="underline">
-          signup page
-        </Link>
-        .
-      </Notice>
-    );
-  }
   if (entry.bracket === "eliminated") {
     return <Notice>You&apos;ve been eliminated — no more picks. ☠️</Notice>;
   }

@@ -26,8 +26,10 @@ describe("validatePick", () => {
     expect(validatePick(input())).toEqual({ ok: true });
   });
 
-  it("rejects unpaid entry", () => {
-    expect(validatePick(input({ entryPaid: false })).error).toBe("not_paid");
+  it("allows an unpaid entry to pick", () => {
+    // Payment is tracked but never blocks picking — a player must not lose a
+    // week waiting on an admin to confirm their Venmo.
+    expect(validatePick(input({ entryPaid: false })).ok).toBe(true);
   });
 
   it("rejects eliminated/inactive entry", () => {

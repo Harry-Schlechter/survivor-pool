@@ -22,12 +22,17 @@ export interface ValidatePickInput {
   weekGames: WeekGameLite[];
   /** This entry's prior picks across the WHOLE season, both brackets. */
   priorTeamAbbrsThisSeason: string[];
+  /**
+   * Whether the buy-in is confirmed. NOT enforced for picking: a player who
+   * has signed up may pick while payment is still being collected, so nobody
+   * is locked out of a week waiting on an admin to confirm Venmo. Retained so
+   * the UI/admin can surface unpaid entries.
+   */
   entryPaid: boolean;
   entryActive: boolean; // bracket is 'main' or 'losers' (not 'eliminated')
 }
 
 export type PickError =
-  | "not_paid"
   | "not_active"
   | "locked"
   | "team_not_in_week"
@@ -54,7 +59,6 @@ export function remainingUses(
 }
 
 export function validatePick(input: ValidatePickInput): ValidationResult {
-  if (!input.entryPaid) return { ok: false, error: "not_paid" };
   if (!input.entryActive) return { ok: false, error: "not_active" };
 
   if (input.lockAt && input.now >= new Date(input.lockAt)) {

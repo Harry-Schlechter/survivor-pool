@@ -20,7 +20,6 @@ const ERROR_LABELS: Record<string, string> = {
   team_used_max: "You've already used that team twice this season.",
   team_not_in_week: "That team isn't playing this week.",
   locked: "Picks are locked.",
-  not_paid: "Your entry isn't marked paid.",
   not_active: "You're not active in the pool.",
   no_active_season: "No active season.",
   not_in_season: "You're not in this season.",
