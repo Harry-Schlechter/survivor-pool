@@ -5,7 +5,7 @@
 // makes the handler execute only once.
 
 import type { Config } from "@netlify/functions";
-import { getActiveSeason, getActivePaidEntries, nowET } from "./_shared";
+import { getActiveSeason, getActiveEntries, nowET } from "./_shared";
 import { db } from "../../lib/db";
 import { entries, picks, user } from "../../lib/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -24,7 +24,7 @@ export default async function handler() {
   // The rollover already advanced the week, so the just-completed week is the
   // one before current_week (floor at 1 for safety).
   const summaryWeek = Math.max(1, season.currentWeek - 1);
-  const active = await getActivePaidEntries(season.id);
+  const active = await getActiveEntries(season.id);
 
   const elimRows = await db
     .select({

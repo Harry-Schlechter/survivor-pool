@@ -1,7 +1,7 @@
 // Thursday ~9am ET: remind active players who haven't picked the current week.
 
 import type { Config } from "@netlify/functions";
-import { getActiveSeason, getActivePaidEntries, nowET } from "./_shared";
+import { getActiveSeason, getActiveEntries, nowET } from "./_shared";
 import { db } from "../../lib/db";
 import { picks } from "../../lib/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -17,7 +17,7 @@ export default async function handler() {
   const season = await getActiveSeason();
   if (!season) return new Response("no active season", { status: 200 });
 
-  const active = await getActivePaidEntries(season.id);
+  const active = await getActiveEntries(season.id);
   const pickRows = await db
     .select({ entryId: picks.entryId })
     .from(picks)

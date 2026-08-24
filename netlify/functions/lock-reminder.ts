@@ -3,7 +3,7 @@
 // notifications table (unique on season+week+kind+entry).
 
 import type { Config } from "@netlify/functions";
-import { getActiveSeason, getActivePaidEntries } from "./_shared";
+import { getActiveSeason, getActiveEntries } from "./_shared";
 import { db } from "../../lib/db";
 import { picks, notifications } from "../../lib/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -23,7 +23,7 @@ export default async function handler() {
     return new Response("not in lock window", { status: 200 });
   }
 
-  const active = await getActivePaidEntries(season.id);
+  const active = await getActiveEntries(season.id);
 
   const pickRows = await db
     .select({ entryId: picks.entryId })

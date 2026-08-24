@@ -45,7 +45,10 @@ export async function getStandings(
     })
     .from(entries)
     .innerJoin(user, eq(entries.userId, user.id))
-    .where(and(eq(entries.seasonId, seasonId), eq(entries.paid, true)));
+    // Not filtered on paid: players may pick before their buy-in is confirmed,
+    // so a paid-only standings list would hide them from the pool (and from
+    // themselves) even though their pick counts.
+    .where(eq(entries.seasonId, seasonId));
 
   const pickRows = await db
     .select({

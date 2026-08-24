@@ -7,7 +7,7 @@ import { TeamLogo } from "@/components/team-logo";
 import { remainingUses } from "@/lib/picks";
 import type { SeasonPhase } from "@/lib/db/schema";
 
-interface GameLite {
+export interface PickGame {
   id: string;
   homeAbbr: string;
   awayAbbr: string;
@@ -31,7 +31,7 @@ export function PickForm({
   phase,
   currentPick,
 }: {
-  games: GameLite[];
+  games: PickGame[];
   usage: Record<string, number>;
   phase: SeasonPhase;
   currentPick: string | null;

@@ -123,7 +123,9 @@ export async function syncAndGradeCurrentWeek(
       eliminatedWeek: entries.eliminatedWeek,
     })
     .from(entries)
-    .where(and(eq(entries.seasonId, season.id), eq(entries.paid, true)));
+    // Everyone who can pick must be graded — picking is no longer gated on
+    // payment, so a paid-only filter would leave unpaid losers alive forever.
+    .where(eq(entries.seasonId, season.id));
 
   const pickRows = await db
     .select({
@@ -186,7 +188,7 @@ export async function aliveCount(seasonId: string): Promise<number> {
   const rows = await db
     .select({ bracket: entries.bracket })
     .from(entries)
-    .where(and(eq(entries.seasonId, seasonId), eq(entries.paid, true)));
+    .where(eq(entries.seasonId, seasonId));
   return rows.filter((r) => r.bracket === "main" || r.bracket === "losers")
     .length;
 }

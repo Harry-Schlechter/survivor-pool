@@ -7,6 +7,7 @@ import {
   getEntryWeekPick,
 } from "@/lib/queries/picks";
 import { PickForm } from "@/components/pick-form";
+import { PickPanel } from "@/components/pick-panel";
 
 export default async function PickPage() {
   const user = await requireUser();
@@ -67,23 +68,20 @@ export default async function PickPage() {
         </p>
       )}
 
-      {locked ? (
-        <Notice>Picks are locked for this week. ⏰</Notice>
-      ) : (
-        <PickForm
-          games={weekGames.map((g) => ({
-            id: g.id,
-            homeAbbr: g.homeAbbr,
-            awayAbbr: g.awayAbbr,
-            kickoff: g.kickoff.toISOString(),
-            spreadDetail: g.spreadDetail,
-            overUnder: g.overUnder != null ? Number(g.overUnder) : null,
-          }))}
-          usage={usage}
-          phase={season.phase as "regular" | "playoffs"}
-          currentPick={currentPick?.teamAbbr ?? null}
-        />
-      )}
+      <PickPanel
+        games={weekGames.map((g) => ({
+          id: g.id,
+          homeAbbr: g.homeAbbr,
+          awayAbbr: g.awayAbbr,
+          kickoff: g.kickoff.toISOString(),
+          spreadDetail: g.spreadDetail,
+          overUnder: g.overUnder != null ? Number(g.overUnder) : null,
+        }))}
+        usage={usage}
+        phase={season.phase as "regular" | "playoffs"}
+        currentPick={currentPick?.teamAbbr ?? null}
+        locked={locked}
+      />
     </div>
   );
 }

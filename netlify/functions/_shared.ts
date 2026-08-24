@@ -2,9 +2,9 @@
 // runtime (Node) and reuse the same Drizzle query layer as the app.
 
 import { getActiveSeason } from "../../lib/queries/seasons";
-import { getActivePaidEntries } from "../../lib/queries/admin";
+import { getActiveEntries } from "../../lib/queries/admin";
 
-export { getActiveSeason, getActivePaidEntries };
+export { getActiveSeason, getActiveEntries };
 
 /** Current hour/minute/weekday in America/New_York, DST-aware. */
 export function nowET(): { hour: number; minute: number; weekday: number } {

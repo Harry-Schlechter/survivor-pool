@@ -26,7 +26,7 @@ export async function getSeasonEntriesWithUser(seasonId: string) {
 }
 
 /** Paid, active (main|losers) entries with email/name (for emails). */
-export async function getActivePaidEntries(seasonId: string) {
+export async function getActiveEntries(seasonId: string) {
   const rows = await db
     .select({
       entryId: entries.id,
@@ -37,7 +37,9 @@ export async function getActivePaidEntries(seasonId: string) {
     })
     .from(entries)
     .innerJoin(user, eq(entries.userId, user.id))
-    .where(and(eq(entries.seasonId, seasonId), eq(entries.paid, true)));
+    // Reminders go to anyone who can still pick; payment is tracked separately
+    // and no longer gates picking.
+    .where(eq(entries.seasonId, seasonId));
   return rows
     .filter((r) => r.bracket === "main" || r.bracket === "losers")
     .map((r) => ({
