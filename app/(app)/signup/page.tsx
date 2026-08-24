@@ -61,12 +61,12 @@ export default async function SignupPage() {
             : "This is how you'll appear in the standings and weekly emails."}
         </p>
         {user.displayName ? (
-          <p className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="font-semibold text-field">
               {user.displayName}
             </span>
             <DisplayNameForm current={user.displayName} />
-          </p>
+          </div>
         ) : (
           <DisplayNameForm current="" startOpen />
         )}
