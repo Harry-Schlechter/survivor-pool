@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/guards";
-import { getCurrentSeason, getEntry } from "@/lib/queries/seasons";
+import {
+  getCurrentSeason,
+  getEntry,
+  signupsOpen,
+} from "@/lib/queries/seasons";
 import { getStandings, type StandingRow } from "@/lib/queries/standings";
 import { teamName } from "@/lib/teams";
 import { TeamLogo } from "@/components/team-logo";
@@ -42,7 +46,7 @@ export default async function Dashboard() {
     <div className="space-y-6">
       <SeasonHeader season={season} />
 
-      {season.status === "signup" && !myEntry && (
+      {signupsOpen(season) && !myEntry && (
         <Link href="/signup" className="block rounded-lg bg-field p-5 text-white">
           <div className="text-lg font-semibold">Signups are open →</div>
           <div className="text-sm text-white/80">

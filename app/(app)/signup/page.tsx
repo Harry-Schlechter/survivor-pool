@@ -1,5 +1,5 @@
 import { requireUser } from "@/lib/auth/guards";
-import { getCurrentSeason, getEntry } from "@/lib/queries/seasons";
+import { getCurrentSeason, getEntry, signupsOpen } from "@/lib/queries/seasons";
 import { SignupActions } from "@/components/signup-actions";
 import { DisplayNameForm } from "@/components/display-name-form";
 
@@ -12,7 +12,7 @@ export default async function SignupPage() {
   }
 
   const entry = await getEntry(season.id, user.id);
-  const signupsOpen = season.status === "signup";
+  const canJoin = signupsOpen(season);
 
   return (
     <div className="mx-auto max-w-lg space-y-5">
@@ -76,7 +76,7 @@ export default async function SignupPage() {
         joined={!!entry}
         paid={!!entry?.paid}
         selfMarked={!!entry?.paidMarkedByUser}
-        signupsOpen={signupsOpen}
+        signupsOpen={canJoin}
       />
     </div>
   );

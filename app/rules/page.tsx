@@ -67,6 +67,24 @@ export default function RulesPage() {
           bracket champion. Players may negotiate splits among themselves
           off-site.
         </Rule>
+        <Rule title="2026 season">
+          Signups are open now and close at the{" "}
+          <strong>kickoff of the first game of the season</strong> —{" "}
+          <strong>Wednesday, September 9 at 8:00pm ET</strong>. Join any time
+          before then; once that game kicks off, the season is locked and no
+          new entries are accepted. Week 1 picks are open as soon as you sign
+          up, so you can enter yours right away.
+        </Rule>
+        <Rule title="Questions or trouble?">
+          Email{" "}
+          <a
+            href="mailto:harry.schlechter391@gmail.com"
+            className="font-semibold text-field underline"
+          >
+            harry.schlechter391@gmail.com
+          </a>{" "}
+          for help with signups, payment, picks, or anything that looks broken.
+        </Rule>
       </div>
     </main>
   );
