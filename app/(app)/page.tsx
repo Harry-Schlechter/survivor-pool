@@ -197,7 +197,16 @@ function BracketTable({
 }
 
 function PickCell({ row }: { row: StandingRow }) {
-  if (!row.thisWeekPick) return <span>— no pick</span>;
+  // thisWeekPick is null both when someone hasn't picked AND when their pick is
+  // hidden pre-lock — hasPick separates the two, so a hidden pick doesn't read
+  // as "no pick".
+  if (!row.thisWeekPick) {
+    return row.hasPick ? (
+      <span className="text-gray-400">🔒 Hidden</span>
+    ) : (
+      <span>— no pick</span>
+    );
+  }
   const mark =
     row.thisWeekResult === "win"
       ? "✅"

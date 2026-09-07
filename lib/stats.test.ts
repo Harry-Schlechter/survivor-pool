@@ -49,8 +49,7 @@ describe("computeCareerStats", () => {
 
 describe("hidden picks (pre-lock privacy)", () => {
   it("excludes a redacted pick from most-picked-team", () => {
-    // A pick hidden from this viewer arrives with team_abbr: null. Counting it
-    // would leak which team they took before lock.
+    // A redacted pick has team_abbr: null — there is no team to count.
     const stats = computeCareerStats(
       [{ id: "e1", season_id: "s1", eliminated_week: null, final_rank: null }],
       [

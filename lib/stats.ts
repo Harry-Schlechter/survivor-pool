@@ -38,7 +38,9 @@ export function computeCareerStats(
   // Most-picked team.
   const teamCounts = new Map<string, number>();
   for (const p of picks) {
-    // Skip picks hidden from this viewer — counting them would leak the team.
+    // A redacted pick (this week's, hidden pre-lock) has no team to count.
+    // Career favourites are not a leak — one week out of a whole history
+    // cannot be inferred from the aggregate.
     if (!p.team_abbr) continue;
     teamCounts.set(p.team_abbr, (teamCounts.get(p.team_abbr) ?? 0) + 1);
   }
