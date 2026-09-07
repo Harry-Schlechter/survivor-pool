@@ -46,3 +46,29 @@ describe("computeCareerStats", () => {
     expect(e.avgEliminationWeek).toBeNull();
   });
 });
+
+describe("hidden picks (pre-lock privacy)", () => {
+  it("excludes a redacted pick from most-picked-team", () => {
+    // A pick hidden from this viewer arrives with team_abbr: null. Counting it
+    // would leak which team they took before lock.
+    const stats = computeCareerStats(
+      [{ id: "e1", season_id: "s1", eliminated_week: null, final_rank: null }],
+      [
+        { entry_id: "e1", season_id: "s1", week: 1, team_abbr: "KC", result: "win" },
+        { entry_id: "e1", season_id: "s1", week: 2, team_abbr: null, result: "pending" },
+      ],
+    );
+    expect(stats.mostPickedTeam).toEqual({ abbr: "KC", count: 1 });
+  });
+
+  it("still counts a hidden pick in the total", () => {
+    const stats = computeCareerStats(
+      [{ id: "e1", season_id: "s1", eliminated_week: null, final_rank: null }],
+      [
+        { entry_id: "e1", season_id: "s1", week: 1, team_abbr: "KC", result: "win" },
+        { entry_id: "e1", season_id: "s1", week: 2, team_abbr: null, result: "pending" },
+      ],
+    );
+    expect(stats.totalPicks).toBe(2);
+  });
+});

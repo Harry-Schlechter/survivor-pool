@@ -12,7 +12,7 @@ interface CareerPick {
   entry_id: string;
   season_id: string;
   week: number;
-  team_abbr: string;
+  team_abbr: string | null;
   result: string;
 }
 
@@ -38,6 +38,8 @@ export function computeCareerStats(
   // Most-picked team.
   const teamCounts = new Map<string, number>();
   for (const p of picks) {
+    // Skip picks hidden from this viewer — counting them would leak the team.
+    if (!p.team_abbr) continue;
     teamCounts.set(p.team_abbr, (teamCounts.get(p.team_abbr) ?? 0) + 1);
   }
   let mostPickedTeam: CareerStats["mostPickedTeam"] = null;

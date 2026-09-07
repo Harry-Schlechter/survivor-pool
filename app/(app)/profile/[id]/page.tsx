@@ -17,7 +17,8 @@ export default async function ProfilePage({
     return <div className="text-gray-600">Player not found.</div>;
   }
 
-  const { entries, picks } = await getCareerData(params.id);
+  // Pass the viewer so the query can hide this week's pick from other players.
+  const { entries, picks } = await getCareerData(params.id, me.id);
   const stats = computeCareerStats(entries, picks);
 
   return (
@@ -74,7 +75,12 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
 function PickHistory({
   picks,
 }: {
-  picks: { season_id: string; week: number; team_abbr: string; result: string }[];
+  picks: {
+    season_id: string;
+    week: number;
+    team_abbr: string | null;
+    result: string;
+  }[];
 }) {
   if (picks.length === 0) return null;
   const sorted = [...picks].sort(
@@ -97,7 +103,11 @@ function PickHistory({
               <tr key={i} className="border-t border-gray-100">
                 <td className="px-4 py-2">{p.week}</td>
                 <td className="px-4 py-2">
-                  <TeamLogo abbr={p.team_abbr} size={18} withName />
+                  {p.team_abbr ? (
+                    <TeamLogo abbr={p.team_abbr} size={18} withName />
+                  ) : (
+                    <span className="text-gray-400">🔒 Hidden until lock</span>
+                  )}
                 </td>
                 <td className="px-4 py-2">
                   {p.result === "win"
