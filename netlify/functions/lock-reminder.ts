@@ -1,4 +1,4 @@
-// Hourly: when the current week's lock is within ~75 min, send a one-time
+// Hourly: when the current week's lock is within ~2 hours, send a one-time
 // urgent reminder to active players who still haven't picked. Deduped via the
 // notifications table (unique on season+week+kind+entry).
 
@@ -10,7 +10,7 @@ import { and, eq } from "drizzle-orm";
 import { sendEachEmail } from "../../lib/email/send";
 import { pickReminderEmail } from "../../lib/email/templates";
 
-const WINDOW_MS = 75 * 60 * 1000;
+const WINDOW_MS = 2 * 60 * 60 * 1000;
 
 export default async function handler() {
   const season = await getActiveSeason();
