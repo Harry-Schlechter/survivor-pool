@@ -3,7 +3,7 @@
 // notifications table (unique on season+week+kind+entry).
 
 import type { Config } from "@netlify/functions";
-import { getActiveSeason, getActiveEntries } from "./_shared";
+import { getActiveSeason, getActiveEntries, heartbeat } from "./_shared";
 import { db } from "../../lib/db";
 import { picks, notifications } from "../../lib/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -63,6 +63,11 @@ export default async function handler() {
         entryId: entryByEmail.get(email)!,
       });
     },
+  );
+
+  await heartbeat(
+    "lock-reminder",
+    `Week ${season.currentWeek}, ${msToLock}ms to lock. Reminded ${sent}, failed ${failed.length}.`,
   );
 
   return Response.json({ ok: true, reminded: sent, failed: failed.length });

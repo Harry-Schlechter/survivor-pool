@@ -6,7 +6,7 @@
 // Thursday. Deduped via the notifications table like lock-reminder.
 
 import type { Config } from "@netlify/functions";
-import { getActiveSeason, getActiveEntries, nowET } from "./_shared";
+import { getActiveSeason, getActiveEntries, nowET, heartbeat } from "./_shared";
 import { db } from "../../lib/db";
 import { picks, notifications } from "../../lib/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -83,6 +83,11 @@ export default async function handler() {
         entryId: entryByEmail.get(email)!,
       });
     },
+  );
+
+  await heartbeat(
+    "thu-reminder",
+    `Week ${season.currentWeek}, lock day. Reminded ${sent}, failed ${failed.length}.`,
   );
 
   return Response.json({ ok: true, reminded: sent, failed: failed.length });

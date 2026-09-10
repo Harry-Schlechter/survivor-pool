@@ -8,9 +8,12 @@
 # Scheduled functions (cron in UTC). ET-sensitive jobs verify the local
 # window inside the handler so DST shifts don't misfire.
 
-# Every 15 min: pull ESPN scores and grade finals as games complete.
+# Twice a day (~8am/8pm ET, both years): odds don't move minute to minute once
+# the week's schedule is set, and grading doesn't need to be real-time —
+# weekly-rollover does its own final pass Tuesday 3am regardless. The et.hour
+# guard in the handler narrows the dual UTC fire to one real run per target time.
 [functions."sync-scores"]
-  schedule = "*/15 * * * *"
+  schedule = "0 12,13,0,1 * * *"
 
 # Tue ~3am ET: final-grade the week, advance to next week (auto playoffs after
 # wk18), recompute lock time. Fires at both UTC hours that map to 3am ET; the
