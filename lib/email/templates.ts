@@ -309,3 +309,34 @@ export function picksLockedEmail(d: PicksLockedData) {
     ),
   };
 }
+
+/**
+ * One-off correction: an admin-triggered test on 2026-09-12 accidentally
+ * fired the real Tuesday rollover/recap jobs against production, sending a
+ * false "week 1 complete, everyone survived, week 2 picks open" recap while
+ * week 1 games were still in progress. This tells the pool to ignore it.
+ */
+export function testMistakeCorrectionEmail() {
+  const body = `
+    <p style="margin:0 0 14px;font-size:17px;font-weight:600">Please disregard the last email</p>
+    <p style="margin:0 0 12px">
+      The "Week 1 results" recap you got earlier was sent by mistake during a
+      site test — <strong>Week 1 is not actually finished</strong>, nobody has
+      been eliminated yet, and Week 2 picks are <strong>not</strong> open.
+    </p>
+    <p style="margin:0 0 12px">
+      Nothing about your entry, pick, or bracket changed. The pool is exactly
+      where it should be — Week 1 games are still being played out, and
+      you'll get the real recap once they're done.
+    </p>
+    <p style="margin:0;color:${MUTED};font-size:14px">Sorry for the noise — carry on. 🏈</p>`;
+
+  return {
+    subject: "Ignore the last email — that was a test, sent by mistake",
+    html: shell(
+      "That recap was a mistake — Week 1 isn't actually over.",
+      "Disregard the last email",
+      body,
+    ),
+  };
+}
