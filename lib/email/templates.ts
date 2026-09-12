@@ -242,3 +242,70 @@ export function pickReminderEmail(week: number, urgent: boolean) {
     ),
   };
 }
+
+export interface PicksLockedData {
+  week: number;
+  /** Alive entries in the winners pool, each with this week's pick. */
+  main: { name: string; pick: string | null }[];
+  /** Alive entries in the losers bracket, each with this week's pick. */
+  losers: { name: string; pick: string | null }[];
+}
+
+/** Roster of name + team-pick pairs, grouped visually like nameList(). */
+function pickList(
+  rows: { name: string; pick: string | null }[],
+  accent: string,
+): string {
+  if (rows.length === 0) {
+    return `<p style="margin:0;font-family:${FONT};font-size:14px;color:${MUTED}">Nobody here.</p>`;
+  }
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${LINE};border-radius:10px;overflow:hidden">
+    ${rows
+      .map(
+        (r, i) => `<tr><td style="padding:10px 14px;background:#ffffff;${
+          i > 0 ? `border-top:1px solid ${LINE};` : ""
+        }border-left:3px solid ${accent};font-family:${FONT};font-size:14px;color:${INK}">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
+            <td style="font-weight:600">${esc(r.name)}</td>
+            <td align="right">${
+              r.pick
+                ? teamChip(r.pick)
+                : `<span style="color:${DANGER};font-size:12px;font-weight:600">no pick</span>`
+            }</td>
+          </tr></table>
+        </td></tr>`,
+      )
+      .join("")}
+  </table>`;
+}
+
+/**
+ * Sent a few minutes after lock: everyone's pick for the week, revealed and
+ * organized by bracket — the "picks are in" companion to weekSummaryEmail's
+ * end-of-week recap.
+ */
+export function picksLockedEmail(d: PicksLockedData) {
+  const noPickCount =
+    d.main.filter((r) => !r.pick).length + d.losers.filter((r) => !r.pick).length;
+
+  const body = `
+    <p style="margin:0 0 18px;font-size:17px;font-weight:600">Week ${d.week} picks are locked. Here's who took who.</p>
+    ${heading(`Winners pool (${d.main.length})`)}
+    ${pickList(d.main, FIELD)}
+    ${heading(`Losers bracket (${d.losers.length})`)}
+    ${pickList(d.losers, "#b45309")}
+    ${
+      noPickCount > 0
+        ? `<p style="margin:20px 0 0;font-family:${FONT};font-size:13px;color:${MUTED}">${noPickCount} player${noPickCount === 1 ? "" : "s"} missed the deadline — a missing pick counts as a loss.</p>`
+        : ""
+    }`;
+
+  return {
+    subject: `Week ${d.week} picks are in — here's who took who`,
+    html: shell(
+      `Everyone's Week ${d.week} pick, revealed by bracket.`,
+      `Week ${d.week} picks locked`,
+      body,
+    ),
+  };
+}

@@ -189,7 +189,7 @@ export const notifications = pgTable(
       .notNull()
       .references(() => seasons.id, { onDelete: "cascade" }),
     week: integer("week").notNull(),
-    kind: text("kind").notNull(), // lock_reminder|thu_reminder|tue_summary
+    kind: text("kind").notNull(), // lock_reminder|thu_reminder|tue_summary|post_lock_summary
     entryId: text("entry_id").references(() => entries.id, {
       onDelete: "cascade",
     }),
