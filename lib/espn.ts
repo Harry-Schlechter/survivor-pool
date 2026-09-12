@@ -150,7 +150,14 @@ export async function fetchWeek(
   const res = await fetch(url, {
     // ESPN data changes during games; never cache hard.
     cache: "no-store",
-    headers: { "User-Agent": "survivor-pool/1.0" },
+    // NO custom User-Agent — ESPN's edge (Akamai) returns 403 for this
+    // endpoint when ANY User-Agent header is present, custom or browser-like;
+    // omitting the header entirely (the fetch default) gets 200. Confirmed by
+    // reproducing all three cases directly against the live endpoint. This is
+    // very likely why sync-scores' games.updated_at silently froze on
+    // 2026-08-24 and never moved again regardless of the Netlify-scheduler
+    // investigation — every invocation, scheduled or not, would have been
+    // hitting this same 403 on the ESPN call the whole time.
   });
   if (!res.ok) {
     throw new Error(`ESPN scoreboard fetch failed: ${res.status} ${url}`);
