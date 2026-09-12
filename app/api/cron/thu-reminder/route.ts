@@ -1,27 +1,35 @@
-// Runs hourly, 8-10am ET: on the morning OF the day the week locks — whatever
-// day that actually is (Thu most weeks, but Wed/Sat/Mon around holidays and
-// the season opener) — remind active players who haven't picked yet. Keying
-// off the real lock date instead of a hardcoded weekday means this fires
-// correctly for the Thanksgiving, Christmas and Wk1 games that don't lock
-// Thursday. Deduped via the notifications table like lock-reminder.
+// Called hourly by GitHub Actions (see .github/workflows/cron.yml). On the
+// morning OF the day the week locks — whatever day that actually is (Thu most
+// weeks, but Wed/Sat/Mon around holidays and the season opener) — reminds
+// active players who haven't picked yet. Keying off the real lock date
+// instead of a hardcoded weekday means this fires correctly for the
+// Thanksgiving, Christmas and Wk1 games that don't lock Thursday. Deduped via
+// the notifications table like lock-reminder.
+//
+// Replaces the Netlify Scheduled Function of the same name: that trigger
+// silently stopped firing site-wide (see lib/cron/shared.ts for the story).
 
-import type { Config } from "@netlify/functions";
-import { getActiveSeason, getActiveEntries, nowET, heartbeat } from "./_shared";
-import { db } from "../../lib/db";
-import { picks, notifications } from "../../lib/db/schema";
+import { type NextRequest, NextResponse } from "next/server";
+import { requireCronSecret } from "@/lib/cron/auth";
+import { getActiveSeason, getActiveEntries, nowET, heartbeat } from "@/lib/cron/shared";
+import { db } from "@/lib/db";
+import { picks, notifications } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { sendEachEmail } from "../../lib/email/send";
-import { pickReminderEmail } from "../../lib/email/templates";
+import { sendEachEmail } from "@/lib/email/send";
+import { pickReminderEmail } from "@/lib/email/templates";
 
-export default async function handler() {
+export async function POST(request: NextRequest) {
+  const unauthorized = requireCronSecret(request);
+  if (unauthorized) return unauthorized;
+
   const et = nowET();
   if (et.hour !== 9) {
-    return new Response("outside the 9am ET hour", { status: 200 });
+    return NextResponse.json({ ok: true, note: "outside the 9am ET hour" });
   }
 
   const season = await getActiveSeason();
   if (!season || !season.lockAt) {
-    return new Response("no active season or no lock set", { status: 200 });
+    return NextResponse.json({ ok: true, note: "no active season or no lock set" });
   }
 
   // Fire only on the calendar day the lock actually falls on, in ET — not
@@ -40,7 +48,7 @@ export default async function handler() {
     day: "2-digit",
   }).format(new Date());
   if (lockDateET !== todayDateET) {
-    return new Response("not lock day", { status: 200 });
+    return NextResponse.json({ ok: true, note: "not lock day" });
   }
 
   const active = await getActiveEntries(season.id);
@@ -50,9 +58,9 @@ export default async function handler() {
     .where(and(eq(picks.seasonId, season.id), eq(picks.week, season.currentWeek)));
   const picked = new Set(pickRows.map((p) => p.entryId));
 
-  // Cron now runs hourly and self-selects on lock day + the 9am ET hour rather
-  // than one fixed UTC tick, so a DST-boundary week could otherwise fire this
-  // twice. Dedupe against notifications the same way lock-reminder does.
+  // Called hourly, so dedupe against notifications the same way lock-reminder
+  // does — the guards above narrow it to one lock-day window, but a repeat
+  // call inside that window must not re-send.
   const sentRows = await db
     .select({ entryId: notifications.entryId })
     .from(notifications)
@@ -90,12 +98,5 @@ export default async function handler() {
     `Week ${season.currentWeek}, lock day. Reminded ${sent}, failed ${failed.length}.`,
   );
 
-  return Response.json({ ok: true, reminded: sent, failed: failed.length });
+  return NextResponse.json({ ok: true, reminded: sent, failed: failed.length });
 }
-
-export const config: Config = {
-  // Hourly: the handler itself decides whether today is lock day and whether
-  // it's the 9am ET hour (13:00 UTC EST / 14:00 UTC EDT would miss the day
-  // check around DST transitions, so run every hour and let the guards filter).
-  schedule: "0 * * * *",
-};

@@ -1,25 +1,28 @@
-// Tuesday ~9am ET: email everyone the recap of the week that just finished.
-// This runs AFTER the 3am-ET weekly-rollover, which already graded that week
-// and advanced current_week — so the completed week is current_week - 1.
-// Cron fires at 13:00 + 14:00 UTC (covers EST + EDT); the exact-9am-ET guard
-// makes the handler execute only once.
+// Called Tuesday morning by GitHub Actions (see .github/workflows/cron.yml).
+// Emails everyone the recap of the week that just finished. Runs AFTER the
+// weekly-rollover call, which already graded that week and advanced
+// current_week — so the completed week is current_week - 1.
+//
+// Replaces the Netlify Scheduled Function of the same name: that trigger
+// silently stopped firing site-wide (see lib/cron/shared.ts for the story).
 
-import type { Config } from "@netlify/functions";
-import { getActiveSeason, getActiveEntries, nowET } from "./_shared";
-import { db } from "../../lib/db";
-import { entries, picks, user } from "../../lib/db/schema";
+import { type NextRequest, NextResponse } from "next/server";
+import { requireCronSecret } from "@/lib/cron/auth";
+import { getActiveSeason, getActiveEntries, heartbeat } from "@/lib/cron/shared";
+import { db } from "@/lib/db";
+import { entries, picks, user } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { sendEachEmail } from "../../lib/email/send";
-import { weekSummaryEmail } from "../../lib/email/templates";
+import { sendEachEmail } from "@/lib/email/send";
+import { weekSummaryEmail } from "@/lib/email/templates";
 
-export default async function handler() {
-  const et = nowET();
-  if (et.weekday !== 2 || et.hour !== 9) {
-    return new Response("outside Tue 9am ET window", { status: 200 });
-  }
+export async function POST(request: NextRequest) {
+  const unauthorized = requireCronSecret(request);
+  if (unauthorized) return unauthorized;
 
   const season = await getActiveSeason();
-  if (!season) return new Response("no active season", { status: 200 });
+  if (!season) {
+    return NextResponse.json({ ok: true, note: "no active season" });
+  }
 
   // The rollover already advanced the week, so the just-completed week is the
   // one before current_week (floor at 1 for safety).
@@ -68,9 +71,10 @@ export default async function handler() {
   const recipients = active.map((e) => e.email).filter(Boolean);
   const { sent, failed } = await sendEachEmail(recipients, subject, html);
 
-  return Response.json({ ok: true, sent, failed: failed.length });
-}
+  await heartbeat(
+    "tue-summary",
+    `Recapped week ${summaryWeek}. Sent ${sent}, failed ${failed.length}.`,
+  );
 
-export const config: Config = {
-  schedule: "0 13 * * 2",
-};
+  return NextResponse.json({ ok: true, sent, failed: failed.length });
+}

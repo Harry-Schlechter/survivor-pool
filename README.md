@@ -65,7 +65,7 @@ confirming Venmo payments.
 | Data access | `lib/queries/*` |
 | Season orchestration | `lib/season-ops.ts` (sync, grade, rollover, playoffs flip) |
 | Auth | `lib/auth/` (Better Auth: server, client, guards) + `app/api/auth/[...all]` |
-| Scheduled jobs | `netlify/functions/` (cron in `netlify.toml`) |
+| Scheduled jobs | `app/api/cron/*` (authenticated routes, triggered by GitHub Actions — `.github/workflows/cron.yml`) |
 
 **No row-level security:** Neon doesn't enforce RLS, so all data access is
 server-side and authorization lives in `lib/auth/guards.ts` + per-mutation checks
@@ -110,7 +110,9 @@ the post-lock pick-visibility rule in `lib/queries/standings.ts`).
 
 1. Connect this repo in Netlify (auto-detects Next.js via `@netlify/plugin-nextjs`).
 2. Set all env vars above in **Site settings → Environment variables**.
-3. Scheduled functions register automatically from `netlify.toml`.
+3. Cron jobs run via GitHub Actions hitting `app/api/cron/*` with `CRON_SECRET`
+   as a bearer token (`.github/workflows/cron.yml`) — Netlify Scheduled Functions
+   were dropped after their trigger silently stopped firing on this site.
 4. Run `npm run db:push` once against the production `DATABASE_URL` to create the
    tables.
 

@@ -221,7 +221,7 @@ export async function advanceWeek(season: SeasonRow): Promise<AdvanceResult> {
 
   await db
     .update(seasons)
-    .set({ phase: nextPhase, currentWeek: nextWeek })
+    .set({ phase: nextPhase, currentWeek: nextWeek, updatedAt: new Date() })
     .where(eq(seasons.id, season.id));
 
   const updated: SeasonRow = {

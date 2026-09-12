@@ -1,26 +1,35 @@
-// Hourly: when the current week's lock is within ~2 hours, send a one-time
-// urgent reminder to active players who still haven't picked. Deduped via the
-// notifications table (unique on season+week+kind+entry).
+// Called hourly by GitHub Actions (see .github/workflows/cron.yml). When the
+// current week's lock is within ~2 hours, sends a one-time urgent reminder to
+// active players who still haven't picked. Deduped via the notifications
+// table (unique on season+week+kind+entry) — safe to call more often than it
+// needs to actually send.
+//
+// Replaces the Netlify Scheduled Function of the same name: that trigger
+// silently stopped firing site-wide (see lib/cron/shared.ts for the story).
 
-import type { Config } from "@netlify/functions";
-import { getActiveSeason, getActiveEntries, heartbeat } from "./_shared";
-import { db } from "../../lib/db";
-import { picks, notifications } from "../../lib/db/schema";
+import { type NextRequest, NextResponse } from "next/server";
+import { requireCronSecret } from "@/lib/cron/auth";
+import { getActiveSeason, getActiveEntries, heartbeat } from "@/lib/cron/shared";
+import { db } from "@/lib/db";
+import { picks, notifications } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
-import { sendEachEmail } from "../../lib/email/send";
-import { pickReminderEmail } from "../../lib/email/templates";
+import { sendEachEmail } from "@/lib/email/send";
+import { pickReminderEmail } from "@/lib/email/templates";
 
 const WINDOW_MS = 2 * 60 * 60 * 1000;
 
-export default async function handler() {
+export async function POST(request: NextRequest) {
+  const unauthorized = requireCronSecret(request);
+  if (unauthorized) return unauthorized;
+
   const season = await getActiveSeason();
   if (!season || !season.lockAt) {
-    return new Response("no lock", { status: 200 });
+    return NextResponse.json({ ok: true, note: "no lock" });
   }
 
   const msToLock = new Date(season.lockAt).getTime() - Date.now();
   if (msToLock <= 0 || msToLock > WINDOW_MS) {
-    return new Response("not in lock window", { status: 200 });
+    return NextResponse.json({ ok: true, note: "not in lock window" });
   }
 
   const active = await getActiveEntries(season.id);
@@ -54,7 +63,7 @@ export default async function handler() {
     subject,
     html,
     // Record the dedupe row only after a confirmed send. A failed send stays
-    // un-recorded so the next hourly run retries it while there's still time.
+    // un-recorded so the next hourly call retries it while there's still time.
     async (email) => {
       await db.insert(notifications).values({
         seasonId: season.id,
@@ -70,9 +79,5 @@ export default async function handler() {
     `Week ${season.currentWeek}, ${msToLock}ms to lock. Reminded ${sent}, failed ${failed.length}.`,
   );
 
-  return Response.json({ ok: true, reminded: sent, failed: failed.length });
+  return NextResponse.json({ ok: true, reminded: sent, failed: failed.length });
 }
-
-export const config: Config = {
-  schedule: "0 * * * *",
-};

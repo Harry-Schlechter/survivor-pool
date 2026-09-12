@@ -1,24 +1,25 @@
-// Shared helpers for scheduled functions. These run in the Netlify Functions
-// runtime (Node) and reuse the same Drizzle query layer as the app.
+// Shared helpers for the /api/cron/* routes.
 
-import { getActiveSeason } from "../../lib/queries/seasons";
-import { getActiveEntries } from "../../lib/queries/admin";
-import { sendEmail } from "../../lib/email/send";
+import { getActiveSeason } from "@/lib/queries/seasons";
+import { getActiveEntries } from "@/lib/queries/admin";
+import { sendEmail } from "@/lib/email/send";
 
 export { getActiveSeason, getActiveEntries };
 
 /**
- * Heartbeat sent to the pool admin every time a scheduled function actually
- * runs its logic (not on an early-return no-op) — the ONLY way we have to
- * confirm Netlify invoked it at all, after lock-reminder's cron produced zero
- * log output for 24 hours straight on 2026-09-09 despite a correctly
- * registered hourly schedule. If a heartbeat stops arriving, the trigger
- * itself has silently stopped firing again — that's a Netlify-side problem,
- * not a code bug, and this is how we'd know before the next lock rather than
- * after it.
+ * Heartbeat sent to the pool admin every time a cron route's logic actually
+ * runs (not on an early-return no-op) — the way to confirm the external
+ * scheduler is calling in at all. Netlify Scheduled Functions were replaced
+ * by these routes because their trigger silently stopped firing on this
+ * site: registration was correct and manual "Run now" worked, but zero
+ * invocations occurred on schedule for 18+ days across two deploys (caught
+ * via the notifications table staying empty and games.updated_at frozen).
+ * If a heartbeat stops arriving here, GitHub Actions has stopped calling in
+ * — check its Actions tab, which (unlike Netlify's scheduler) has readable
+ * run history.
  *
  * Deliberately swallows its own failure: a heartbeat that throws must never
- * take down the reminder/summary logic it's reporting on.
+ * take down the job it's reporting on.
  */
 export async function heartbeat(fn: string, detail: string): Promise<void> {
   try {

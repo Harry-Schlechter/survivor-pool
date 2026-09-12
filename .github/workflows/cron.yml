@@ -1,0 +1,78 @@
+name: Survivor pool cron
+
+# Drives the pool's scheduled jobs by calling authenticated Next.js API
+# routes on the deployed site. This replaces Netlify Scheduled Functions,
+# whose trigger silently stopped firing on this site: registration was
+# correct and manual "Run now" worked in the dashboard, but zero scheduled
+# invocations occurred for 18+ days across two deploys — caught via the
+# notifications table staying empty and games.updated_at staying frozen.
+# GitHub Actions gives us a real, readable run history (the Actions tab)
+# instead of Netlify's opaque scheduler.
+#
+# Each route re-validates its own timing/eligibility (lock windows, lock
+# day, dedup against the notifications table, a 20h re-entrancy floor on
+# the rollover) — see the comments in each app/api/cron/*/route.ts. An
+# extra or slightly-early call is safe; it just no-ops.
+#
+# One job per cadence, each calling only the route(s) that actually need
+# that cadence — NOT a single job firing all five routes on every trigger,
+# which would call weekly-rollover and tue-summary every hour relying
+# purely on their internal guards, and burn Actions minutes for no reason.
+#
+# SITE_URL and CRON_SECRET are repo secrets (Settings → Secrets and
+# variables → Actions). CRON_SECRET must match Netlify's env var of the
+# same name for the site.
+
+on:
+  schedule:
+    - cron: "0 12,13,0,1 * * *" # 8am/8pm ET (both EDT+EST) -> sync-scores
+    - cron: "0 * * * *"          # hourly -> lock-reminder, thu-reminder (self-select)
+    - cron: "0 7,8 * * 2"        # Tue ~3am ET (EDT+EST) -> weekly-rollover
+    - cron: "0 13,14 * * 2"      # Tue ~9am ET (EDT+EST) -> tue-summary
+  workflow_dispatch: {} # manual "Run workflow" button, all jobs, for testing
+
+jobs:
+  sync-scores:
+    if: github.event.schedule == '0 12,13,0,1 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/sync-scores
+        run: |
+          curl -sf -X POST "${{ secrets.SITE_URL }}/api/cron/sync-scores" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n"
+
+  hourly-reminders:
+    if: github.event.schedule == '0 * * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/lock-reminder
+        run: |
+          curl -sf -X POST "${{ secrets.SITE_URL }}/api/cron/lock-reminder" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n"
+      - name: Call /api/cron/thu-reminder
+        run: |
+          curl -sf -X POST "${{ secrets.SITE_URL }}/api/cron/thu-reminder" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n"
+
+  weekly-rollover:
+    if: github.event.schedule == '0 7,8 * * 2' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/weekly-rollover
+        run: |
+          curl -sf -X POST "${{ secrets.SITE_URL }}/api/cron/weekly-rollover" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n"
+
+  tue-summary:
+    if: github.event.schedule == '0 13,14 * * 2' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call /api/cron/tue-summary
+        run: |
+          curl -sf -X POST "${{ secrets.SITE_URL }}/api/cron/tue-summary" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -w "\nHTTP %{http_code}\n"

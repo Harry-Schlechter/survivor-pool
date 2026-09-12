@@ -5,32 +5,11 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Scheduled functions (cron in UTC). ET-sensitive jobs verify the local
-# window inside the handler so DST shifts don't misfire.
-
-# Twice a day (~8am/8pm ET, both years): odds don't move minute to minute once
-# the week's schedule is set, and grading doesn't need to be real-time —
-# weekly-rollover does its own final pass Tuesday 3am regardless. The et.hour
-# guard in the handler narrows the dual UTC fire to one real run per target time.
-[functions."sync-scores"]
-  schedule = "0 12,13,0,1 * * *"
-
-# Tue ~3am ET: final-grade the week, advance to next week (auto playoffs after
-# wk18), recompute lock time. Fires at both UTC hours that map to 3am ET; the
-# handler runs only inside the 3am ET hour.
-[functions."weekly-rollover"]
-  schedule = "0 7,8 * * 2"
-
-[functions."tue-summary"]
-  # ~9am ET Tuesday — after the 3am rollover, so the recap reflects the new week.
-  # 13:00 UTC (EST) / 14:00 UTC (EDT); handler no-ops outside the ET window.
-  schedule = "0 13,14 * * 2"
-
-[functions."thu-reminder"]
-  # Hourly: the handler fires only on the actual lock day (in ET) during the
-  # 9am ET hour, so it works whatever weekday the week locks on — not just
-  # Thursday. Necessary for the Wk1 opener and Thanksgiving/Christmas weeks.
-  schedule = "0 * * * *"
-
-[functions."lock-reminder"]
-  schedule = "0 * * * *"
+# No scheduled functions here anymore. Netlify Scheduled Functions silently
+# stopped invoking on this site — registration was correct and manual
+# "Run now" worked, but zero scheduled invocations occurred for 18+ days
+# across two deploys (caught via the notifications table staying empty and
+# games.updated_at staying frozen). The 5 cron jobs are now authenticated
+# Next.js API routes under app/api/cron/*, called by a GitHub Actions
+# schedule in .github/workflows/cron.yml — see lib/cron/shared.ts for the
+# full story and lib/cron/auth.ts for the auth check.
