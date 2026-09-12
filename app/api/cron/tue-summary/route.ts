@@ -10,7 +10,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { requireCronSecret } from "@/lib/cron/auth";
 import { getActiveSeason, getActiveEntries, heartbeat } from "@/lib/cron/shared";
 import { db } from "@/lib/db";
-import { entries, picks, user } from "@/lib/db/schema";
+import { entries, picks, user, notifications } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import { sendEachEmail } from "@/lib/email/send";
 import { weekSummaryEmail } from "@/lib/email/templates";
@@ -27,6 +27,27 @@ export async function POST(request: NextRequest) {
   // The rollover already advanced the week, so the just-completed week is the
   // one before current_week (floor at 1 for safety).
   const summaryWeek = Math.max(1, season.currentWeek - 1);
+
+  // Once-per-week dedup. This route previously had NONE — a duplicate call
+  // (a manual test, a retry, a mistaken re-trigger) re-blasted the whole pool
+  // with no guard at all, which is exactly what happened during testing on
+  // 2026-09-12. Same pattern as post-lock-summary: a single existence-check
+  // row per season+week, entryId left null since this is one broadcast.
+  const already = await db
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.seasonId, season.id),
+        eq(notifications.week, summaryWeek),
+        eq(notifications.kind, "tue_summary"),
+      ),
+    )
+    .limit(1);
+  if (already.length > 0) {
+    return NextResponse.json({ ok: true, note: "already sent this week" });
+  }
+
   const active = await getActiveEntries(season.id);
 
   const elimRows = await db
@@ -70,6 +91,13 @@ export async function POST(request: NextRequest) {
   // bad address would fail the entire recap.
   const recipients = active.map((e) => e.email).filter(Boolean);
   const { sent, failed } = await sendEachEmail(recipients, subject, html);
+
+  await db.insert(notifications).values({
+    seasonId: season.id,
+    week: summaryWeek,
+    kind: "tue_summary",
+    entryId: null,
+  });
 
   await heartbeat(
     "tue-summary",
