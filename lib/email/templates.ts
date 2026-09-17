@@ -340,3 +340,38 @@ export function testMistakeCorrectionEmail() {
     ),
   };
 }
+
+export interface AllClearData {
+  week: number;
+  /** Lock deadline for the given week, already formatted for display (ET). */
+  lockDisplay: string;
+}
+
+/**
+ * Sent once, after the 2026-09-16 grading bug was fixed and production data
+ * corrected: a short "we're back, here's what to do" note with the real
+ * upcoming lock time.
+ */
+export function allClearEmail(d: AllClearData) {
+  const body = `
+    <p style="margin:0 0 14px;font-size:17px;font-weight:600">Hi all — sorry for the hiccup 🙏</p>
+    <p style="margin:0 0 12px">
+      We hit a site bug this week that briefly showed some incorrect
+      eliminations. It's fixed, everyone's bracket has been corrected, and it
+      won't happen again.
+    </p>
+    <p style="margin:0 0 4px"><strong>Pool's back up and Week ${d.week} picks are due:</strong></p>
+    <p style="margin:0 0 4px;font-size:16px;font-weight:700;color:${FIELD}">${d.lockDisplay}</p>
+    <p style="margin:0 0 4px;color:${MUTED};font-size:14px">A missed pick counts as a loss, so get it in before then.</p>
+    ${button(`${env.siteUrl()}/pick`, "Make your pick →")}
+    <p style="margin:20px 0 0;color:${MUTED};font-size:13px">Thanks for bearing with us — good luck this week. 🏈</p>`;
+
+  return {
+    subject: `Pool's back up — Week ${d.week} picks due ${d.lockDisplay}`,
+    html: shell(
+      `We're back — Week ${d.week} picks due ${d.lockDisplay}.`,
+      "We're back up",
+      body,
+    ),
+  };
+}
