@@ -106,6 +106,20 @@ export async function syncAndGradeCurrentWeek(
   await syncWeekGames(season);
   const week = season.currentWeek;
 
+  // NEVER grade a week before its lock has passed. gradeWeek() treats a
+  // missing pick as an automatic loss (correct — that IS the rule once
+  // picks have closed), but with no guard here that same rule fired the
+  // instant weekly-rollover advanced current_week, before anyone had even
+  // had a chance to pick the new week. On 2026-09-16 this eliminated 15
+  // players who had WON week 1: the Tuesday-morning sync-scores tick ran
+  // syncAndGradeCurrentWeek against the just-advanced week 2 — zero picks
+  // existed yet — and every active entry's missing pick graded as an
+  // instant loss. Grading (and thus elimination) may only ever happen for
+  // a week whose lock has genuinely passed.
+  if (season.lockAt && new Date() < new Date(season.lockAt)) {
+    return { graded: false, allFinal: false, entriesChanged: 0, picksGraded: 0 };
+  }
+
   const gameRows = await db
     .select({
       homeAbbr: games.homeAbbr,
@@ -132,6 +146,10 @@ export async function syncAndGradeCurrentWeek(
       entryId: picks.entryId,
       teamAbbr: picks.teamAbbr,
       bracket: picks.bracket,
+      // Required so gradeWeek can tell an already-graded pick from a
+      // pending one and skip re-applying its transition — see the
+      // idempotency comment in lib/grading.ts.
+      result: picks.result,
     })
     .from(picks)
     .where(and(eq(picks.seasonId, season.id), eq(picks.week, week)));
@@ -147,6 +165,7 @@ export async function syncAndGradeCurrentWeek(
       entry_id: p.entryId,
       team_abbr: p.teamAbbr,
       bracket: p.bracket as "main" | "losers",
+      result: p.result as "pending" | "win" | "loss",
     })),
     resultsByTeam: resultsByTeam(gameRows),
   });

@@ -8,8 +8,17 @@
 //   - eliminated_week is stamped when a main-bracket player first loses
 //     (i.e. when they leave the main pool). It is NOT overwritten later.
 //
-// `gradeWeek` is a PURE function over plain rows so it is fully unit-testable and
-// idempotent: feeding it already-graded state produces the same transitions.
+// `gradeWeek` is a PURE function over plain rows so it is fully unit-testable.
+// It is idempotent ONLY because each GradePick carries its current stored
+// result and each GradeEntry's eliminated_week is checked against the week
+// being graded — both are what let a repeat call recognize "already handled"
+// and skip re-applying a loss. Earlier versions of this file claimed
+// idempotency without actually implementing it: a second grading pass over
+// an unchanged loss would re-apply the SAME transition (main->losers, then
+// losers->eliminated) because nothing marked it as already done. That
+// eliminated 14 players who had actually WON week 1, on 2026-09-16, when
+// sync-scores' twice-daily tick re-graded the same finished week more than
+// once before it advanced. Do not remove the guards below.
 
 import type { Bracket } from "./db/schema";
 
@@ -23,6 +32,15 @@ export interface GradePick {
   entry_id: string;
   team_abbr: string;
   bracket: "main" | "losers"; // which pool this pick counts in
+  /**
+   * The pick's CURRENT stored result, before this grading pass. Required for
+   * real idempotency: without it, a second grading pass over an
+   * already-graded loss (e.g. a repeat sync-scores tick before the week
+   * advances) re-applies the SAME loss and pushes the entry down another
+   * bracket (main->losers on pass 1, losers->eliminated on pass 2) even
+   * though nothing changed. Skip any pick whose result is already final.
+   */
+  result: "pending" | "win" | "loss";
 }
 
 export interface GameResult {
@@ -91,6 +109,25 @@ export function gradeWeek(input: GradeInput): GradeOutput {
     if (entry.bracket === "eliminated") continue;
 
     const pick = picksByEntry.get(entry.id);
+
+    // Already graded THIS week — what makes re-running gradeWeek on the same
+    // week safe. Two cases:
+    //  1. A submitted pick whose result is already final (win/loss) — a
+    //     second pass would otherwise treat entry.bracket (already moved to
+    //     "losers" by the first pass) as the starting point and apply a
+    //     SECOND loss transition, eliminating someone for a loss already
+    //     accounted for.
+    //  2. A MISSING pick that already caused this week's transition — there
+    //     is no picks row to check a stored result on, so this is detected
+    //     via entry.eliminated_week already equalling the week being graded.
+    //     Without this, a second pass over the same missing pick would apply
+    //     a second automatic loss and eliminate someone for a no-pick that
+    //     was already handled.
+    if (pick) {
+      if (pick.result !== "pending") continue;
+    } else if (entry.eliminated_week === week) {
+      continue;
+    }
 
     // A submitted pick on an unfinished game means the week isn't done.
     if (pick) {

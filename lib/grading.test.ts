@@ -19,9 +19,9 @@ function base(overrides: Partial<GradeInput> = {}): GradeInput {
       { id: "e3", bracket: "losers", eliminated_week: 1 },
     ],
     picks: [
-      { entry_id: "e1", team_abbr: "KC", bracket: "main" }, // win
-      { entry_id: "e2", team_abbr: "DAL", bracket: "main" }, // loss
-      { entry_id: "e3", team_abbr: "BAL", bracket: "losers" }, // loss
+      { entry_id: "e1", team_abbr: "KC", bracket: "main", result: "pending" }, // win
+      { entry_id: "e2", team_abbr: "DAL", bracket: "main", result: "pending" }, // loss
+      { entry_id: "e3", team_abbr: "BAL", bracket: "losers", result: "pending" }, // loss
     ],
     resultsByTeam: results,
     ...overrides,
@@ -56,7 +56,7 @@ describe("gradeWeek", () => {
     const out = gradeWeek(
       base({
         entries: [{ id: "t", bracket: "main", eliminated_week: null }],
-        picks: [{ entry_id: "t", team_abbr: "NYG", bracket: "main" }],
+        picks: [{ entry_id: "t", team_abbr: "NYG", bracket: "main", result: "pending" }],
       }),
     );
     expect(out.pickUpdates).toContainEqual({ entry_id: "t", result: "loss" });
@@ -93,28 +93,109 @@ describe("gradeWeek", () => {
     const out = gradeWeek(
       base({
         entries: [{ id: "w", bracket: "main", eliminated_week: null }],
-        picks: [{ entry_id: "w", team_abbr: "WAS", bracket: "main" }],
+        picks: [{ entry_id: "w", team_abbr: "WAS", bracket: "main", result: "pending" }],
       }),
     );
     expect(out.allFinal).toBe(false);
     expect(out.entryUpdates).toHaveLength(0);
   });
 
-  it("is idempotent: re-running on the post-state yields no new changes", () => {
-    // After grading, e2 is in losers, e3 eliminated. Re-grade with their NEW
-    // brackets and a fresh week where they have no picks => e2 (losers, no pick)
-    // would lose again; so idempotency here means: feeding the SAME week's
-    // already-applied entries with their picks already graded is stable.
-    const first = gradeWeek(base());
-    // Apply transitions to a new entries array:
-    const applied = base().entries.map((e) => {
-      const u = first.entryUpdates.find((x) => x.id === e.id);
-      return u ? { ...e, bracket: u.bracket, eliminated_week: u.eliminated_week } : e;
+  // Regression coverage for the 2026-09-16 incident: sync-scores re-ran
+  // syncAndGradeCurrentWeek for the same already-finished week more than
+  // once (it has no "already fully graded" check of its own), and gradeWeek
+  // had no way to tell an already-applied loss from a fresh one — so the
+  // second pass re-applied the SAME loss and pushed 14 players who had
+  // WON week 1 down an extra bracket (several genuinely lost, moved
+  // main->losers correctly on pass 1, then losers->eliminated incorrectly
+  // on pass 2 for the exact same result). Fixed by having gradeWeek check
+  // each pick's already-stored result and each entry's eliminated_week.
+  describe("idempotency (regression: 2026-09-16 double-grading incident)", () => {
+    it("does NOT re-eliminate a main-bracket entry already dropped to losers this week", () => {
+      const first = gradeWeek(base());
+      const e2Update = first.entryUpdates.find((u) => u.id === "e2")!;
+      expect(e2Update.bracket).toBe("losers"); // sanity: pass 1 is correct
+
+      // Simulate what the DB looks like after pass 1's writes: e2 is now in
+      // "losers", and its picks row has result="loss" persisted.
+      const second = gradeWeek(
+        base({
+          entries: [
+            { id: "e1", bracket: "main", eliminated_week: null },
+            { id: "e2", bracket: "losers", eliminated_week: 3 },
+            { id: "e3", bracket: "losers", eliminated_week: 1 },
+          ],
+          picks: [
+            { entry_id: "e1", team_abbr: "KC", bracket: "main", result: "win" },
+            { entry_id: "e2", team_abbr: "DAL", bracket: "main", result: "loss" },
+            { entry_id: "e3", team_abbr: "BAL", bracket: "losers", result: "loss" },
+          ],
+        }),
+      );
+
+      // Nobody should move again — everything this week was already graded.
+      expect(second.entryUpdates).toHaveLength(0);
+      expect(second.pickUpdates).toHaveLength(0);
     });
-    // Re-grade the same week with winners now reflecting graded picks:
-    const second = gradeWeek(base({ entries: applied }));
-    // e1 still wins (no change); e2 now in losers picked DAL(loss) -> would be
-    // eliminated. That's expected re-application semantics, so assert e1 stable:
-    expect(second.entryUpdates.find((u) => u.id === "e1")).toBeUndefined();
+
+    it("does NOT re-eliminate an entry whose loss came from a MISSING pick", () => {
+      // Pass 1: no pick submitted, entry drops main -> losers, eliminated_week
+      // stamped to the week being graded.
+      const first = gradeWeek(
+        base({
+          entries: [{ id: "m", bracket: "main", eliminated_week: null }],
+          picks: [],
+        }),
+      );
+      expect(first.entryUpdates[0]).toEqual({
+        id: "m",
+        bracket: "losers",
+        eliminated_week: 3,
+      });
+
+      // Pass 2: same week, same missing pick, entry now reflects pass 1's
+      // bracket AND eliminated_week — must not be pushed to "eliminated".
+      const second = gradeWeek(
+        base({
+          entries: [{ id: "m", bracket: "losers", eliminated_week: 3 }],
+          picks: [],
+        }),
+      );
+      expect(second.entryUpdates).toHaveLength(0);
+    });
+
+    it("still grades a genuinely NEW week's loss for an entry already in losers", () => {
+      // "m" lost week 3 (handled above). In week 4 they lose again for real —
+      // this must still eliminate them; only a repeat of the SAME week is
+      // skipped.
+      const week4 = gradeWeek({
+        week: 4,
+        entries: [{ id: "m", bracket: "losers", eliminated_week: 3 }],
+        picks: [{ entry_id: "m", team_abbr: "DAL", bracket: "losers", result: "pending" }],
+        resultsByTeam: results,
+      });
+      expect(week4.entryUpdates).toContainEqual({
+        id: "m",
+        bracket: "eliminated",
+        eliminated_week: 3, // keeps the FIRST loss week, per the stated rule
+      });
+    });
+
+    it("a repeated win changes nothing (was already safe, still covered)", () => {
+      const second = gradeWeek(
+        base({
+          picks: [
+            { entry_id: "e1", team_abbr: "KC", bracket: "main", result: "win" },
+            { entry_id: "e2", team_abbr: "DAL", bracket: "main", result: "loss" },
+            { entry_id: "e3", team_abbr: "BAL", bracket: "losers", result: "loss" },
+          ],
+          entries: [
+            { id: "e1", bracket: "main", eliminated_week: null },
+            { id: "e2", bracket: "losers", eliminated_week: 3 },
+            { id: "e3", bracket: "eliminated", eliminated_week: 1 },
+          ],
+        }),
+      );
+      expect(second.entryUpdates.find((u) => u.id === "e1")).toBeUndefined();
+    });
   });
 });

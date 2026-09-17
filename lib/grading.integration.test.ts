@@ -34,8 +34,8 @@ describe("2024 wk1 end-to-end grading", () => {
         { id: "loser", bracket: "main", eliminated_week: null },
       ],
       picks: [
-        { entry_id: "winner", team_abbr: "KC", bracket: "main" },
-        { entry_id: "loser", team_abbr: "BAL", bracket: "main" },
+        { entry_id: "winner", team_abbr: "KC", bracket: "main", result: "pending" },
+        { entry_id: "loser", team_abbr: "BAL", bracket: "main", result: "pending" },
       ],
       resultsByTeam: rbt,
     });
