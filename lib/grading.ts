@@ -173,3 +173,26 @@ export function gradeWeek(input: GradeInput): GradeOutput {
 
   return { entryUpdates, pickUpdates, allFinal };
 }
+
+/**
+ * A week is only safe to grade once EVERY one of its games is completed —
+ * not merely once lock has passed. Lock happens at first kickoff (Wed/Thu
+ * night); the week's real outcome isn't known until Sunday/Monday's games
+ * are over, days later. Called from lib/season-ops.ts's
+ * syncAndGradeCurrentWeek before it ever calls gradeWeek above.
+ *
+ * Two real incidents came from grading running too early, both from a guard
+ * that looked right but was never exercised by a test:
+ *   - 2026-09-16: the Tuesday-morning tick graded a JUST-advanced week that
+ *     had zero picks yet, treating every missing pick as an instant loss.
+ *   - 2026-09-19: a guard keyed on "lock has passed" let a missing pick be
+ *     graded as an instant loss the moment lock passed (Wed/Thu night) —
+ *     days before that week's Sunday/Monday games were even played.
+ * Kept in this file (no DB import) rather than lib/season-ops.ts so it's
+ * directly unit-testable the same way gradeWeek is.
+ */
+export function isWeekReadyToGrade(
+  weekGames: { completed: boolean }[],
+): boolean {
+  return weekGames.length > 0 && weekGames.every((g) => g.completed);
+}

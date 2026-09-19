@@ -7,7 +7,7 @@ import { games, entries, picks, seasons } from "@/lib/db/schema";
 import { and, eq } from "drizzle-orm";
 import type { SeasonRow } from "@/lib/db/schema";
 import { fetchWeek, earliestKickoff, type NormalizedGame } from "@/lib/espn";
-import { gradeWeek, type GradeInput } from "@/lib/grading";
+import { gradeWeek, isWeekReadyToGrade, type GradeInput } from "@/lib/grading";
 
 /** Map season phase + week to ESPN seasontype + week. */
 function espnParams(season: SeasonRow): { seasontype: 1 | 2 | 3; week: number } {
@@ -98,27 +98,13 @@ export interface GradeReport {
 
 /**
  * Sync the current week's scores then grade. Idempotent; safe from cron or the
- * admin button. Only mutates when games are final.
+ * admin button. Only mutates when the ENTIRE week is done playing.
  */
 export async function syncAndGradeCurrentWeek(
   season: SeasonRow,
 ): Promise<GradeReport> {
   await syncWeekGames(season);
   const week = season.currentWeek;
-
-  // NEVER grade a week before its lock has passed. gradeWeek() treats a
-  // missing pick as an automatic loss (correct — that IS the rule once
-  // picks have closed), but with no guard here that same rule fired the
-  // instant weekly-rollover advanced current_week, before anyone had even
-  // had a chance to pick the new week. On 2026-09-16 this eliminated 15
-  // players who had WON week 1: the Tuesday-morning sync-scores tick ran
-  // syncAndGradeCurrentWeek against the just-advanced week 2 — zero picks
-  // existed yet — and every active entry's missing pick graded as an
-  // instant loss. Grading (and thus elimination) may only ever happen for
-  // a week whose lock has genuinely passed.
-  if (season.lockAt && new Date() < new Date(season.lockAt)) {
-    return { graded: false, allFinal: false, entriesChanged: 0, picksGraded: 0 };
-  }
 
   const gameRows = await db
     .select({
@@ -129,6 +115,22 @@ export async function syncAndGradeCurrentWeek(
     })
     .from(games)
     .where(and(eq(games.seasonId, season.id), eq(games.week, week)));
+
+  // NEVER grade a week until EVERY one of its games is final — not merely
+  // "lock has passed". Lock happens at first kickoff (Wed/Thu night); the
+  // week's real outcome isn't known until Sunday/Monday's games finish days
+  // later. A guard keyed on lock time alone let a missing pick be graded as
+  // an instant loss the moment lock passed, dropping players to the losers
+  // bracket before the week had even been played — found 2026-09-19. A guard
+  // keyed on lock also failed differently on 2026-09-16: the Tuesday-morning
+  // tick ran this against a JUST-advanced week with zero picks yet, since
+  // lock had (trivially) not been set for the new week either at that exact
+  // instant. Checking "are all this week's games actually completed" fixes
+  // both: this now only ever runs for real once a week, at the Tuesday
+  // rollover, once every game (including Monday Night Football) is over.
+  if (!isWeekReadyToGrade(gameRows)) {
+    return { graded: false, allFinal: false, entriesChanged: 0, picksGraded: 0 };
+  }
 
   const entryRows = await db
     .select({

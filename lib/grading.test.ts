@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { gradeWeek, type GradeInput } from "./grading";
+import { gradeWeek, isWeekReadyToGrade, type GradeInput } from "./grading";
 
 const results = {
   KC: { winnerAbbr: "KC", completed: true }, // KC won
@@ -197,5 +197,56 @@ describe("gradeWeek", () => {
       );
       expect(second.entryUpdates.find((u) => u.id === "e1")).toBeUndefined();
     });
+  });
+});
+
+// Regression coverage for two real incidents caused by grading running
+// before a week's games were actually finished:
+//
+//   2026-09-16: the Tuesday-morning sync tick ran syncAndGradeCurrentWeek
+//   against a JUST-advanced week that had zero picks yet, grading every
+//   missing pick as an instant loss.
+//
+//   2026-09-19: a guard keyed on "lock has passed" let a missing pick be
+//   graded as an instant loss the moment lock passed (Wed/Thu night) — days
+//   before that week's Sunday/Monday games were even played.
+//
+// The fix in both cases is the same: grading may only run once EVERY game
+// in the week is completed. isWeekReadyToGrade() is that single decision.
+describe("isWeekReadyToGrade", () => {
+  it("is false when no games exist yet for the week (freshly advanced)", () => {
+    expect(isWeekReadyToGrade([])).toBe(false);
+  });
+
+  it("is false when even one game is still in progress (mid-week Sunday)", () => {
+    expect(
+      isWeekReadyToGrade([
+        { completed: true },
+        { completed: true },
+        { completed: false }, // e.g. Monday Night Football, still playing
+      ]),
+    ).toBe(false);
+  });
+
+  it("is false right after lock, before ANY game has been played", () => {
+    // This is the exact 2026-09-19 scenario: lock has passed (Wed/Thu
+    // night) but Sunday/Monday's games haven't happened yet.
+    expect(
+      isWeekReadyToGrade([
+        { completed: false },
+        { completed: false },
+        { completed: false },
+      ]),
+    ).toBe(false);
+  });
+
+  it("is true only once every game in the week is completed", () => {
+    expect(
+      isWeekReadyToGrade([
+        { completed: true },
+        { completed: true },
+        { completed: true },
+      ]),
+    ).toBe(true);
   });
 });
