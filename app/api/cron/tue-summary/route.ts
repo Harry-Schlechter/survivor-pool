@@ -50,9 +50,14 @@ export async function POST(request: NextRequest) {
 
   const active = await getActiveEntries(season.id);
 
-  const elimRows = await db
+  // Everyone touched by this week's grading, with bracket AFTER grading and
+  // their pick for the week — the single source both buckets below are
+  // derived from, so "eliminated" and "bumped" can't double up or diverge.
+  const touchedRows = await db
     .select({
       id: entries.id,
+      bracket: entries.bracket,
+      eliminatedWeek: entries.eliminatedWeek,
       displayName: user.displayName,
       name: user.name,
       email: user.email,
@@ -62,7 +67,7 @@ export async function POST(request: NextRequest) {
     .where(
       and(
         eq(entries.seasonId, season.id),
-        eq(entries.eliminatedWeek, summaryWeek),
+        eq(entries.lastGradedWeek, summaryWeek),
       ),
     );
 
@@ -72,15 +77,28 @@ export async function POST(request: NextRequest) {
     .where(and(eq(picks.seasonId, season.id), eq(picks.week, summaryWeek)));
   const pickByEntry = new Map(pickRows.map((p) => [p.entryId, p.teamAbbr]));
 
-  const eliminated = elimRows.map((e) => ({
-    name: e.displayName || e.name || e.email.split("@")[0] || "player",
-    pick: pickByEntry.get(e.id) ?? null,
-  }));
+  const nameOf = (e: (typeof touchedRows)[number]) =>
+    e.displayName || e.name || e.email.split("@")[0] || "player";
+
+  // eliminated_week now means ONLY "the week they were actually eliminated"
+  // (see lib/grading.ts) — a losers bracket loss, not a main->losers drop.
+  const eliminated = touchedRows
+    .filter((e) => e.bracket === "eliminated" && e.eliminatedWeek === summaryWeek)
+    .map((e) => ({ name: nameOf(e), pick: pickByEntry.get(e.id) ?? null }));
+
+  // Bumped this week: touched by this week's grading, still alive, but now
+  // in the losers bracket — i.e. a main->losers drop, not merely "already in
+  // losers and won again". This is the group tue-summary used to silently
+  // fold into "eliminated" (same root cause as the eliminated_week bug).
+  const bumped = touchedRows
+    .filter((e) => e.bracket === "losers")
+    .map((e) => ({ name: nameOf(e), pick: pickByEntry.get(e.id) ?? null }));
 
   const { subject, html } = weekSummaryEmail({
     year: season.year,
     week: summaryWeek,
     eliminated,
+    bumped,
     mainAlive: active.filter((e) => e.bracket === "main").map((e) => e.name),
     losersAlive: active.filter((e) => e.bracket === "losers").map((e) => e.name),
     nextWeek: summaryWeek + 1,

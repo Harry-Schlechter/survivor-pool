@@ -137,6 +137,7 @@ export async function syncAndGradeCurrentWeek(
       id: entries.id,
       bracket: entries.bracket,
       eliminatedWeek: entries.eliminatedWeek,
+      lastGradedWeek: entries.lastGradedWeek,
     })
     .from(entries)
     // Everyone who can pick must be graded — picking is no longer gated on
@@ -162,6 +163,7 @@ export async function syncAndGradeCurrentWeek(
       id: e.id,
       bracket: e.bracket as GradeInput["entries"][number]["bracket"],
       eliminated_week: e.eliminatedWeek,
+      last_graded_week: e.lastGradedWeek,
     })),
     picks: pickRows.map((p) => ({
       entry_id: p.entryId,
@@ -188,7 +190,11 @@ export async function syncAndGradeCurrentWeek(
   for (const eu of out.entryUpdates) {
     await db
       .update(entries)
-      .set({ bracket: eu.bracket, eliminatedWeek: eu.eliminated_week })
+      .set({
+        bracket: eu.bracket,
+        eliminatedWeek: eu.eliminated_week,
+        lastGradedWeek: eu.last_graded_week,
+      })
       .where(eq(entries.id, eu.id));
   }
 

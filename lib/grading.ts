@@ -5,20 +5,31 @@
 //   - Missing a pick by lock => automatic loss that week.
 //   - A loss in the MAIN bracket drops you to the LOSERS bracket (first life lost).
 //   - A loss in the LOSERS bracket eliminates you entirely.
-//   - eliminated_week is stamped when a main-bracket player first loses
-//     (i.e. when they leave the main pool). It is NOT overwritten later.
+//   - eliminated_week is stamped ONLY on the losers->eliminated transition —
+//     it means "the week they were actually eliminated". It is never set on
+//     the main->losers drop (see 2026-09-22 fix below).
 //
 // `gradeWeek` is a PURE function over plain rows so it is fully unit-testable.
 // It is idempotent ONLY because each GradePick carries its current stored
-// result and each GradeEntry's eliminated_week is checked against the week
-// being graded — both are what let a repeat call recognize "already handled"
-// and skip re-applying a loss. Earlier versions of this file claimed
-// idempotency without actually implementing it: a second grading pass over
-// an unchanged loss would re-apply the SAME transition (main->losers, then
-// losers->eliminated) because nothing marked it as already done. That
-// eliminated 14 players who had actually WON week 1, on 2026-09-16, when
-// sync-scores' twice-daily tick re-graded the same finished week more than
-// once before it advanced. Do not remove the guards below.
+// result, and each GradeEntry's last_graded_week is checked against the
+// week being graded for the one case with no picks row to check a result
+// on (a missing pick) — both are what let a repeat call recognize "already
+// handled" and skip re-applying a loss. Earlier versions of this file
+// claimed idempotency without actually implementing it: a second grading
+// pass over an unchanged loss would re-apply the SAME transition
+// (main->losers, then losers->eliminated) because nothing marked it as
+// already done. That eliminated 14 players who had actually WON week 1, on
+// 2026-09-16, when sync-scores' twice-daily tick re-graded the same
+// finished week more than once before it advanced. Do not remove the
+// guards below.
+//
+// 2026-09-22: eliminated_week used to double as "last loss week" AND get
+// stamped on the main->losers drop too, "never overwritten" — meaning a
+// player who lost once, dropped to losers, and was still alive showed up
+// everywhere (site's Eliminated table, the tue-summary recap, career
+// stats) as eliminated in that first-loss week. Split the concerns: added
+// last_graded_week purely for idempotency (never displayed anywhere), so
+// eliminated_week can mean ONLY "actually, finally eliminated".
 
 import type { Bracket } from "./db/schema";
 
@@ -26,6 +37,8 @@ export interface GradeEntry {
   id: string;
   bracket: Bracket; // current bracket BEFORE this week is applied
   eliminated_week: number | null;
+  /** Idempotency bookkeeping only — see the file header. Not displayed. */
+  last_graded_week: number | null;
 }
 
 export interface GradePick {
@@ -61,6 +74,7 @@ export interface EntryUpdate {
   id: string;
   bracket: Bracket;
   eliminated_week: number | null;
+  last_graded_week: number;
 }
 
 export interface PickUpdate {
@@ -119,13 +133,15 @@ export function gradeWeek(input: GradeInput): GradeOutput {
     //     accounted for.
     //  2. A MISSING pick that already caused this week's transition — there
     //     is no picks row to check a stored result on, so this is detected
-    //     via entry.eliminated_week already equalling the week being graded.
+    //     via last_graded_week already equalling the week being graded.
+    //     (eliminated_week can't be used for this: it no longer changes on
+    //     the main->losers drop, so it wouldn't be set here at all.)
     //     Without this, a second pass over the same missing pick would apply
     //     a second automatic loss and eliminate someone for a no-pick that
     //     was already handled.
     if (pick) {
       if (pick.result !== "pending") continue;
-    } else if (entry.eliminated_week === week) {
+    } else if (entry.last_graded_week === week) {
       continue;
     }
 
@@ -156,17 +172,32 @@ export function gradeWeek(input: GradeInput): GradeOutput {
 
     // outcome === "loss" -> transition bracket
     if (entry.bracket === "main") {
+      // First life lost — down to the losers bracket, NOT eliminated. Leave
+      // eliminated_week null: it means "the week they were actually
+      // eliminated", and every reader of this column (the site's Eliminated
+      // table, the tue-summary recap, career stats) wants that, not "the
+      // week of their first loss". Stamping it here was the original design
+      // ("first life lost, never overwritten") and it silently broke both
+      // consumers: the recap listed still-alive losers-bracket players as
+      // eliminated, and the site's "out wk N" showed the wrong week once
+      // they were later actually eliminated. Fixed 2026-09-22.
       entryUpdates.push({
         id: entry.id,
         bracket: "losers",
-        eliminated_week: entry.eliminated_week ?? week, // first life lost
+        eliminated_week: entry.eliminated_week, // unchanged (still null)
+        last_graded_week: week, // idempotency bookkeeping only, not displayed
       });
     } else {
-      // losers bracket loss => fully eliminated
+      // losers bracket loss => fully and finally eliminated. This is the
+      // ONLY transition that ever sets eliminated_week, and it always
+      // stamps the CURRENT week — an entry can only make this transition
+      // once (eliminated is terminal, skipped at the top of this loop), so
+      // there is no "don't overwrite" case to protect against here.
       entryUpdates.push({
         id: entry.id,
         bracket: "eliminated",
-        eliminated_week: entry.eliminated_week ?? week,
+        eliminated_week: week,
+        last_graded_week: week,
       });
     }
   }

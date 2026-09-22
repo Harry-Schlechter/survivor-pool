@@ -110,14 +110,48 @@ function shell(preheader: string, title: string, body: string): string {
 export interface WeekSummaryData {
   year: number;
   week: number;
+  /** Fully knocked out of the pool this week (a losers-bracket loss). */
   eliminated: { name: string; pick: string | null }[];
+  /** Dropped from the winners pool into the losers bracket this week — still alive. */
+  bumped: { name: string; pick: string | null }[];
   mainAlive: string[];
   losersAlive: string[];
   nextWeek: number;
 }
 
+/** A bordered card listing name + pick rows, used by both result sections below. */
+function resultCard(
+  title: string,
+  rows: { name: string; pick: string | null }[],
+  accentBg: string,
+  accentBorder: string,
+  accentText: string,
+): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0;border:1px solid ${accentBorder};border-radius:10px;overflow:hidden">
+    <tr><td style="padding:11px 16px;background:${accentBg};border-bottom:1px solid ${accentBorder};font-family:${FONT};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${accentText}">
+      ${title}
+    </td></tr>
+    ${rows
+      .map(
+        (r, i) => `<tr><td style="padding:11px 16px;background:#ffffff;${
+          i > 0 ? `border-top:1px solid ${LINE};` : ""
+        }font-family:${FONT};font-size:15px;color:${INK}">
+        <strong>${esc(r.name)}</strong>
+        <span style="color:${MUTED};font-size:13px"> — ${
+          r.pick ? "picked" : ""
+        } </span>${
+          r.pick
+            ? teamChip(r.pick)
+            : `<span style="color:${DANGER};font-size:13px;font-weight:600">no pick submitted</span>`
+        }
+      </td></tr>`,
+      )
+      .join("")}
+  </table>`;
+}
+
 export function weekSummaryEmail(d: WeekSummaryData) {
-  const survived = d.eliminated.length === 0;
+  const cleanSweep = d.eliminated.length === 0 && d.bumped.length === 0;
 
   // Scoreboard strip — the three numbers that matter, read at a glance.
   const stats = `
@@ -138,60 +172,81 @@ export function weekSummaryEmail(d: WeekSummaryData) {
       </tr>
     </table>`;
 
-  const elim = survived
+  // Order matters, per how the pool reads results: who's actually OUT of the
+  // pool first, then who took a hit but is still alive in the losers
+  // bracket, then the full standings. These used to be conflated into one
+  // "eliminated" bucket — a main->losers drop (still alive) read exactly
+  // like being knocked out of the pool entirely.
+  const sections = cleanSweep
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0"><tr>
          <td style="padding:14px 16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;font-family:${FONT};font-size:15px;color:#166534">
            <strong>Clean sweep.</strong> Everybody survived Week ${d.week}. 😤
          </td></tr></table>`
-    : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0;border:1px solid #fecaca;border-radius:10px;overflow:hidden">
-         <tr><td style="padding:11px 16px;background:#fef2f2;border-bottom:1px solid #fecaca;font-family:${FONT};font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${DANGER}">
-           ☠️ Eliminated in Week ${d.week}
-         </td></tr>
-         ${d.eliminated
-           .map(
-             (e, i) => `<tr><td style="padding:11px 16px;background:#ffffff;${
-               i > 0 ? `border-top:1px solid ${LINE};` : ""
-             }font-family:${FONT};font-size:15px;color:${INK}">
-             <strong>${esc(e.name)}</strong>
-             <span style="color:${MUTED};font-size:13px"> — ${
-               e.pick ? "picked" : ""
-             } </span>${
-               e.pick
-                 ? teamChip(e.pick)
-                 : `<span style="color:${DANGER};font-size:13px;font-weight:600">no pick submitted</span>`
-             }
-           </td></tr>`,
-           )
-           .join("")}
-       </table>`;
+    : [
+        d.eliminated.length > 0
+          ? resultCard(
+              `☠️ Eliminated from the pool — Week ${d.week}`,
+              d.eliminated,
+              "#fef2f2",
+              "#fecaca",
+              DANGER,
+            )
+          : "",
+        d.bumped.length > 0
+          ? resultCard(
+              `🩹 Dropped to the losers bracket — Week ${d.week}`,
+              d.bumped,
+              "#fffbeb",
+              "#fde68a",
+              "#b45309",
+            )
+          : "",
+      ]
+        .filter(Boolean)
+        .join("");
 
   const body = `
     <p style="margin:0 0 18px;font-size:17px;font-weight:600">Week ${d.week} is in the books.</p>
     ${stats}
-    ${elim}
-    ${heading(`Still alive · Winners pool`)}
+    ${sections}
+    ${heading(`Still alive · Winners pool (${d.mainAlive.length})`)}
     ${nameList(d.mainAlive, FIELD)}
-    ${heading(`Losers bracket`)}
+    ${heading(`Losers bracket (${d.losersAlive.length})`)}
     ${nameList(d.losersAlive, "#b45309")}
+    ${
+      d.eliminated.length > 0
+        ? `${heading(`Eliminated (${d.eliminated.length})`)}${nameList(
+            d.eliminated.map((e) => e.name),
+            DANGER,
+          )}`
+        : ""
+    }
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:26px 0 0;border-top:1px solid ${LINE}"><tr><td style="padding-top:20px">
       <p style="margin:0 0 2px;font-family:${FONT};font-size:15px"><strong>Week ${d.nextWeek} picks are open.</strong></p>
       <p style="margin:0;font-family:${FONT};font-size:14px;color:${MUTED}">Picks lock Thursday night at kickoff. Miss it and it counts as a loss.</p>
       ${button(`${env.siteUrl()}/pick`, "Make your pick →")}
     </td></tr></table>`;
 
+  const subject = cleanSweep
+    ? `Week ${d.week}: everyone survived — ${d.mainAlive.length} still alive`
+    : `Week ${d.week}: ${d.eliminated.length} eliminated, ${d.bumped.length} dropped to losers`;
+
+  const preheader = cleanSweep
+    ? `Nobody went out in Week ${d.week}. Week ${d.nextWeek} picks are open.`
+    : [
+        d.eliminated.length > 0
+          ? `Eliminated: ${d.eliminated.map((e) => e.name).join(", ")}.`
+          : "",
+        d.bumped.length > 0
+          ? `Dropped to losers: ${d.bumped.map((e) => e.name).join(", ")}.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
   return {
-    subject: survived
-      ? `Week ${d.week}: everyone survived — ${d.mainAlive.length} still alive`
-      : `Week ${d.week}: ${d.eliminated.length} knocked out — ${d.mainAlive.length} still alive`,
-    html: shell(
-      survived
-        ? `Nobody went out in Week ${d.week}. Week ${d.nextWeek} picks are open.`
-        : `${d.eliminated
-            .map((e) => e.name)
-            .join(", ")} eliminated. Week ${d.nextWeek} picks are open.`,
-      `Week ${d.week} recap · ${d.year}`,
-      body,
-    ),
+    subject,
+    html: shell(preheader, `Week ${d.week} recap · ${d.year}`, body),
   };
 }
 

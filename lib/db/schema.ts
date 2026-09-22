@@ -106,7 +106,20 @@ export const entries = pgTable(
     bracket: text("bracket").notNull().default("main"), // main|losers|eliminated
     paid: boolean("paid").notNull().default(false),
     paidMarkedByUser: boolean("paid_marked_by_user").notNull().default(false),
+    // The week they were FULLY eliminated (losers -> eliminated), never the
+    // week of an earlier main -> losers drop. Was previously stamped on
+    // first loss and never overwritten, which showed still-alive
+    // losers-bracket players as eliminated everywhere this is read (site,
+    // tue-summary recap, career stats). Fixed 2026-09-22 — see lib/grading.ts.
     eliminatedWeek: integer("eliminated_week"),
+    // Idempotency bookkeeping ONLY — not shown anywhere. The week gradeWeek()
+    // last transitioned this entry's bracket. Needed specifically for a
+    // missing pick dropping someone main -> losers: that transition has no
+    // picks row to check a stored result on (unlike a submitted pick), and
+    // no longer stamps eliminated_week (that column means "actually
+    // eliminated" now, not "last touched"), so without this a second grading
+    // pass over the same missing pick would apply a second automatic loss.
+    lastGradedWeek: integer("last_graded_week"),
     finalRank: integer("final_rank"),
     sbScoreGuess: integer("sb_score_guess"),
     joinedAt: timestamp("joined_at").notNull().defaultNow(),

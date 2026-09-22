@@ -30,8 +30,8 @@ describe("2024 wk1 end-to-end grading", () => {
     const out = gradeWeek({
       week: 1,
       entries: [
-        { id: "winner", bracket: "main", eliminated_week: null },
-        { id: "loser", bracket: "main", eliminated_week: null },
+        { id: "winner", bracket: "main", eliminated_week: null, last_graded_week: null },
+        { id: "loser", bracket: "main", eliminated_week: null, last_graded_week: null },
       ],
       picks: [
         { entry_id: "winner", team_abbr: "KC", bracket: "main", result: "pending" },
@@ -43,7 +43,11 @@ describe("2024 wk1 end-to-end grading", () => {
     expect(out.pickUpdates).toContainEqual({ entry_id: "winner", result: "win" });
     expect(out.pickUpdates).toContainEqual({ entry_id: "loser", result: "loss" });
     expect(out.entryUpdates.find((u) => u.id === "winner")).toBeUndefined();
-    expect(out.entryUpdates.find((u) => u.id === "loser")?.bracket).toBe("losers");
+    const loserUpdate = out.entryUpdates.find((u) => u.id === "loser");
+    expect(loserUpdate?.bracket).toBe("losers");
+    // Dropping to losers is a survivable first loss, not an elimination —
+    // eliminated_week must stay null.
+    expect(loserUpdate?.eliminated_week).toBeNull();
     expect(out.allFinal).toBe(true);
   });
 
